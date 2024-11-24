@@ -111,8 +111,8 @@ def add_event_to_google(service: Resource, event: EventDict, calendar_id: str) -
         event: Dictionary containing event details.
         calendar_id: ID of the target Google Calendar.
 
-    Raises:
-        Exception: If the event creation fails.
+    Returns:
+        None: but modifies the event dict to include google_event_id if successful
     """
     try:
         print(f"Adding event to Google Calendar: {event['summary']}")
@@ -124,10 +124,13 @@ def add_event_to_google(service: Resource, event: EventDict, calendar_id: str) -
         print(f"Google event body: {google_event}")
         created_event = service.events().insert(calendarId=calendar_id, body=google_event).execute()
         print(f"Event created: {created_event.get('htmlLink')}")
+        # Store the Google Calendar event ID
+        event["google_event_id"] = created_event["id"]
         time.sleep(0.5)
     except Exception as e:
         print(f"Failed to add event: {event['summary']}. Error: {str(e)}")
         errored.append(event)
+
 
 def delete_event_from_google(service: Resource, event: EventDict, calendar_id: str) -> None:
     """Delete a single event from Google Calendar.
@@ -136,14 +139,15 @@ def delete_event_from_google(service: Resource, event: EventDict, calendar_id: s
         service: Authenticated Google Calendar API service object.
         event: Dictionary containing event details.
         calendar_id: ID of the target Google Calendar.
-
-    Raises:
-        Exception: If the event deletion fails.
     """
+    google_event_id = event.get("google_event_id")
+    if not google_event_id:
+        print(f"Skipping deletion of event {event['summary']}: no Google Calendar ID found")
+        return
+
     print(f"Deleting event from Google Calendar: {event['summary']}")
-    event_id = event.get("uid")
     try:
-        service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
+        service.events().delete(calendarId=calendar_id, eventId=google_event_id).execute()
         print(f"Event deleted: {event['summary']}")
     except Exception as e:
         print(f"Failed to delete event: {event['summary']} - {str(e)}")
@@ -215,10 +219,12 @@ def fetch_events(calendar: CalDAVCalendar) -> EventsDict:
                     "start": dtstart.dt.isoformat() if dtstart else None,
                     "end": dtend.dt.isoformat() if dtend else None,
                     "last_modified": last_modified.dt.isoformat() if last_modified else None,
+                    "google_event_id": None  # Initialize the Google Calendar event ID
                 }
 
     print(f"Total fetched events: {len(events)}")
     return events
+
 
 def load_local_sync() -> EventsDict:
     """Load the locally synced events from JSON file.
@@ -261,6 +267,8 @@ def compare_events(
         if uid not in local_events:
             new_events.append(event)
         elif event["last_modified"] != local_events[uid].get("last_modified"):
+            # Preserve the Google Calendar event ID when updating
+            event["google_event_id"] = local_events[uid].get("google_event_id")
             updated_events.append(event)
 
     for uid in local_events:
