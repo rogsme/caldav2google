@@ -1,27 +1,36 @@
 # CalDAV2GoogleCalendar
 
-This project synchronizes events from a CalDAV calendar to a specific Google Calendar.
+<p align="center">
+  <img src="https://gitlab.com/uploads/-/system/project/avatar/64798757/logo.jpg" alt="caldav2google"/>
+</p>
+
+A Python utility to synchronize events from a CalDAV calendar to Google Calendar, maintaining a local state to track changes.
 
 ## Features
-- Connects to a CalDAV server to fetch calendar events.
-- Compares fetched events with locally stored events to identify new, updated, and deleted events.
-- Synchronizes changes to a specified Google Calendar:
-  - Adds new events.
-  - Updates modified events.
-  - Deletes removed events.
+- One-way synchronization from CalDAV to Google Calendar
+- Intelligent change detection:
+  - Adds new events
+  - Updates modified events
+  - Removes deleted events
+- Local state management to track synchronized events
+- Detailed logging of synchronization activities
+- Rate limiting to prevent API throttling
+- Error handling with failed events tracking
 
 ## Prerequisites
 
 ### 1. Python Environment
-Ensure you have Python 3.7 or higher installed. It is recommended to use a virtual environment.
+- Python 3.10 or higher
+- Poetry for dependency management
 
-### 2. CalDAV Server
-A CalDAV server should be set up and accessible. Ensure you have the following:
+### 2. CalDAV Server Details
+You'll need:
 - CalDAV server URL
 - Username
 - Password
+- Calendar name to synchronize
 
-### 3. Google Calendar API Credentials
+### 3. Google Calendar Setup
 
 To interact with the Google Calendar API, follow these steps:
 
@@ -38,85 +47,144 @@ To interact with the Google Calendar API, follow these steps:
 
 ## Installation
 
-1. Clone this repository:
+1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/caldav2googlecalendar.git
-   cd caldav2googlecalendar
+   git clone https://gitlab.com/rogs/caldav2google.git
+   cd caldav2google
    ```
 
-2. Install dependencies using Poetry:
+2. Install dependencies:
    ```bash
    poetry install
    ```
 
-3. Activate the virtual environment:
+3. Create `.env` file:
+   ```env
+   CALDAV_URL=https://your-caldav-server.com
+   CALDAV_USERNAME=your_username
+   CALDAV_PASSWORD=your_password
+   CALDAV_CALENDAR_NAME=your_calendar_name
+   GOOGLE_CALENDAR_NAME=target_google_calendar_name
+   ```
+
+## Usage
+
+1. Activate virtual environment:
    ```bash
    poetry shell
    ```
 
-## Configuration
-
-1. Update the `CALDAV_URL`, `USERNAME`, and `PASSWORD` variables in the script to match your CalDAV server credentials.
-2. Ensure the `LOCAL_SYNC_FILE` points to the file where locally synced events will be stored.
-
-## Usage
-
-1. Run the script:
+2. Run synchronization:
    ```bash
-   python sync_caldav_to_google.py
+   python main.py
    ```
 
-2. On the first run, a browser window will open for Google authentication. Grant the necessary permissions to access your Google Calendar.
-3. The script will:
-   - Fetch events from the CalDAV calendar.
-   - Compare with the locally stored events.
-   - Add, update, or delete events in the specified Google Calendar.
+On first run:
+- Browser opens for Google OAuth authentication
+- Grant requested calendar permissions
+- Token is saved locally for future use
 
 ## Project Structure
 
 ```
-caldav2googlecalendar/
-├── sync_caldav_to_google.py  # Main script
-├── pyproject.toml            # Project metadata and dependencies
-├── README.md                 # Project documentation
-├── credentials.json          # Google API credentials (not included in the repository)
-├── calendar_sync.json        # Locally synced events
-└── .venv/                    # Virtual environment (not included in the repository)
+src/
+├── auth_google.py        # Google Calendar authentication
+├── caldav_client.py      # CalDAV server interactions
+├── main.py               # Main synchronization script
+├── sync_logic.py         # Core synchronization logic
+pyproject.toml            # Project configuration
+env.example               # Environment variables example file
+.env                      # Environment variables 
+README.md                 # README instructions
+credentials.json          # Google OAuth credentials
+token.pickle              # Stored Google token
+calendar_sync.json        # Local sync state
 ```
 
-## Logging
+## Configuration Files
 
-- The script provides detailed logs during execution:
-  - Number of new, updated, and deleted events.
-  - Any errors encountered during synchronization.
+### credentials.json
+Downloaded from Google Cloud Console (required)
+
+### .env
+```env
+CALDAV_URL=https://caldav.example.com
+CALDAV_USERNAME=user
+CALDAV_PASSWORD=pass
+CALDAV_CALENDAR_NAME=My Calendar
+GOOGLE_CALENDAR_NAME=CalDAV Events
+```
+
+### calendar_sync.json
+Automatically maintained by the script to track synchronization state.
+
+## Error Handling
+
+The script provides robust error handling:
+- Failed events are tracked and reported
+- Rate limiting prevents API throttling
+- Detailed error messages for troubleshooting
+- Synchronization state preserved on failure
 
 ## Troubleshooting
 
-### Common Issues
+### Authentication Issues
 
-#### 1. `HttpError 400` when adding events
-- Ensure the event data is correctly formatted (ISO 8601 format for `start` and `end` dates).
-- Check if required fields (`summary`, `start`, `end`) are missing.
+#### Google Calendar
+- Error: `Invalid client credentials`
+  - Verify `credentials.json` is correctly downloaded and placed
+  - Ensure OAuth consent screen is configured
 
-#### 2. Authentication Issues
-- Ensure the `credentials.json` file is in the correct location.
-- Delete the `token.pickle` file and re-authenticate by running the script again.
+- Error: `Token has been expired or revoked`
+  - Delete `token.pickle`
+  - Re-run script to authenticate
 
-#### 3. CalDAV Connection Issues
-- Verify the `CALDAV_URL`, `USERNAME`, and `PASSWORD` values.
-- Test connectivity to the CalDAV server using another CalDAV client (e.g., Thunderbird).
+#### CalDAV
+- Error: `Could not connect to server`
+  - Check URL format and accessibility
+  - Verify network connectivity
+  - Confirm server SSL certificate if using HTTPS
 
-## Contributions
+### Synchronization Issues
 
-Contributions are welcome! Please fork the repository, make your changes, and submit a pull request.
+- Error: `Calendar not found`
+  - Verify calendar names in `.env`
+  - Check calendar visibility/permissions
+
+- Error: `Failed to add/update events`
+  - Check event data formatting
+  - Verify calendar write permissions
+  - Review API quotas and limits
+
+## Development
+
+### Pre-commit Hooks
+```bash
+poetry run pre-commit install
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create feature branch
+3. Commit changes
+4. Push to branch
+5. Submit pull request
+
+Please:
+- Follow existing code style
+- Add tests for new features
+- Update documentation
+- Run pre-commit hooks
 
 ## License
 
-This project is licensed under the GNU General Public License v3.0 or later. See the LICENSE file for more details.
+GNU General Public License v3.0 or later
 
-## Acknowledgments
+## Credits
 
-- [Radicale](https://radicale.org/) for providing a lightweight CalDAV server.
-- [Google Calendar API](https://developers.google.com/calendar) for seamless calendar integration.
-
-
+Built with:
+- [caldav](https://pypi.org/project/caldav/) - CalDAV client library
+- [google-api-python-client](https://github.com/googleapis/google-api-python-client) - Google Calendar API
+- [python-dotenv](https://pypi.org/project/python-dotenv/) - Environment management
+- [Poetry](https://python-poetry.org/) - Dependency management
