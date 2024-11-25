@@ -57,7 +57,6 @@ def compare_events(
 
     logger.info(f"Comparing {len(server_events)} server events with {len(local_events)} local events")
 
-    # Find new and updated events
     for uid, event in server_events.items():
         if uid not in local_events:
             logger.debug(f"New event found: {event['summary']} (UID: {uid})")
@@ -67,7 +66,6 @@ def compare_events(
             event["google_event_id"] = local_events[uid].get("google_event_id")
             updated_events.append(event)
 
-    # Find deleted events
     for uid, event in local_events.items():
         if uid not in server_events:
             logger.debug(f"Deleted event found: {event['summary']} (UID: {uid})")
@@ -117,7 +115,6 @@ def save_local_sync(file_path: str, events: EventsDict) -> None:
     logger.info(f"Saving {len(events)} events to local sync file")
     sanitized_events = {}
 
-    # Sanitize events
     for event_id, event_data in events.items():
         try:
             sanitized_events[event_id] = _sanitize_event_for_json(event_data)
@@ -125,7 +122,6 @@ def save_local_sync(file_path: str, events: EventsDict) -> None:
             logger.error(f"Failed to sanitize event {event_id} ({event_data.get('summary', 'No summary')}): {str(e)}")
             continue
 
-    # Save to file
     try:
         with open(file_path, "w") as file:
             json.dump(sanitized_events, file, indent=4)
@@ -142,7 +138,6 @@ def save_local_sync(file_path: str, events: EventsDict) -> None:
                 logger.error(f"Event summary: {event_data.get('summary', 'No summary')}")
                 logger.error(f"Error: {str(e)}")
 
-                # Debug field values
                 for key, value in event_data.items():
                     try:
                         json.dumps({key: value})
@@ -161,7 +156,6 @@ def add_event_to_google(service: Resource, event: EventDict, calendar_id: str) -
     logger.info(f"Processing event: {event['summary']} (UID: {event['uid']})")
 
     try:
-        # Prepare event data
         google_event = {
             "summary": event["summary"],
             "description": event.get("description", ""),
@@ -170,7 +164,6 @@ def add_event_to_google(service: Resource, event: EventDict, calendar_id: str) -
             "end": {"dateTime": event["end"], "timeZone": "UTC"},
         }
 
-        # Handle recurring events
         if event.get("rrule"):
             logger.debug(f"Processing recurring event rules for {event['summary']}")
             rrule_parts = []
@@ -181,13 +174,11 @@ def add_event_to_google(service: Resource, event: EventDict, calendar_id: str) -
                 rrule_parts.append(f"{key}={value}")
             google_event["recurrence"] = [f"RRULE:{';'.join(rrule_parts)}"]
 
-            # Handle excluded dates
             if event.get("exdate"):
                 logger.debug(f"Processing {len(event['exdate'])} excluded dates")
                 exdates = [f"EXDATE;TZID=UTC:{date}" for date in event["exdate"]]
                 google_event["recurrence"].extend(exdates)
 
-        # Add event to Google Calendar
         created_event = (
             service.events()
             .insert(
@@ -200,7 +191,6 @@ def add_event_to_google(service: Resource, event: EventDict, calendar_id: str) -
         event["google_event_id"] = created_event["id"]
         logger.info(f"Successfully created event: {event['summary']} (Google ID: {created_event['id']})")
 
-        # Rate limiting
         time.sleep(0.5)
 
     except Exception as e:
@@ -228,7 +218,6 @@ def delete_event_from_google(service: Resource, event: EventDict, calendar_id: s
         service.events().delete(calendarId=calendar_id, eventId=google_event_id).execute()
         logger.info(f"Successfully deleted event: {event['summary']}")
 
-        # Rate limiting
         time.sleep(0.5)
 
     except Exception as e:

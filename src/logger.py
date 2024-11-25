@@ -2,7 +2,6 @@
 
 import logging
 
-# Configure logging format
 LOGFORMAT = "%(asctime)s - %(levelname)s - %(message)s"
 DATEFORMAT = "%Y-%m-%d %H:%M:%S"
 
