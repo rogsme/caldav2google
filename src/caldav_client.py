@@ -50,7 +50,14 @@ def get_calendar(principal: Principal, calendar_name: str) -> CalDAVCalendar:
 
 
 def _process_exdate(exdate: Any) -> list:
-    """Process EXDATE field which can be either a single date or a list of dates."""
+    """Process EXDATE field which can be either a single date or a list of dates.
+
+    Args:
+        exdate: EXDATE field from an iCalendar event.
+
+    Returns:
+        list: List of dates in ISO format or None if no EXDATE field is present.
+    """
     if not exdate:
         return None
 

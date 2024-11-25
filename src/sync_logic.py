@@ -3,6 +3,7 @@
 import json
 import os
 import time
+from datetime import datetime
 from typing import Any, Dict, List, Tuple
 
 from googleapiclient.discovery import Resource
@@ -11,6 +12,30 @@ EventDict = Dict[str, Any]
 EventsDict = Dict[str, EventDict]
 
 error_events = []
+
+
+def _sanitize_event_for_json(event_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Sanitize event data to ensure it's JSON serializable.
+
+    Args:
+        event_data: Dictionary containing event details.
+
+    Returns:
+        Dict[str, Any]: Sanitized dictionary.
+
+    Raises:
+        TypeError: If the event data is not JSON serializable.
+    """
+    sanitized = event_data.copy()
+
+    if "rrule" in sanitized and sanitized["rrule"]:
+        rrule = sanitized["rrule"].copy()
+        for key, value in rrule.items():
+            if isinstance(value, list):
+                rrule[key] = [item.isoformat() if isinstance(item, datetime) else item for item in value]
+        sanitized["rrule"] = rrule
+
+    return sanitized
 
 
 def load_local_sync(file_path: str) -> EventsDict:
@@ -35,8 +60,29 @@ def save_local_sync(file_path: str, events: EventsDict) -> None:
         file_path: Path to the JSON file.
         events: Dictionary of events to save.
     """
-    with open(file_path, "w") as file:
-        json.dump(events, file, indent=4)
+    sanitized_events = {}
+    for event_id, event_data in events.items():
+        try:
+            sanitized_events[event_id] = _sanitize_event_for_json(event_data)
+        except Exception as e:
+            print(f"Warning: Could not sanitize event {event_id}: {e}")
+            continue
+
+    try:
+        with open(file_path, "w") as file:
+            json.dump(sanitized_events, file, indent=4)
+    except TypeError as e:
+        print(f"Error saving events: {e}")
+        for event_id, event_data in sanitized_events.items():
+            try:
+                json.dumps(event_data)
+            except TypeError as e:
+                print(f"Problem found in event {event_id}: {e}")
+                for key, value in event_data.items():
+                    try:
+                        json.dumps({key: value})
+                    except TypeError as e:
+                        print(f"  Problem field: {key} = {value} (type: {type(value)})")
 
 
 def compare_events(
@@ -92,6 +138,7 @@ def add_event_to_google(service: Resource, event: EventDict, calendar_id: str) -
             rrule_parts = []
             for key, value in event["rrule"].items():
                 if isinstance(value, list):
+                    value = [item.isoformat() if isinstance(item, datetime) else item for item in value]
                     value = ",".join(str(v) for v in value)
                 rrule_parts.append(f"{key}={value}")
             google_event["recurrence"] = [f"RRULE:{';'.join(rrule_parts)}"]
@@ -100,46 +147,14 @@ def add_event_to_google(service: Resource, event: EventDict, calendar_id: str) -
                 exdates = [f"EXDATE;TZID=UTC:{date}" for date in event["exdate"]]
                 google_event["recurrence"].extend(exdates)
 
-        if event.get("recurrence_id"):
-            original_id = event["uid"].rsplit("-", 1)[0]
-            instance_id = event["recurrence_id"]
-
-            original_events = (
-                service.events()
-                .list(
-                    calendarId=calendar_id,
-                    iCalUID=original_id,
-                )
-                .execute()
-                .get("items", [])
+        created_event = (
+            service.events()
+            .insert(
+                calendarId=calendar_id,
+                body=google_event,
             )
-
-            if original_events:
-                original_event_id = original_events[0]["id"]
-                google_event["originalStartTime"] = {
-                    "dateTime": instance_id,
-                    "timeZone": "UTC",
-                }
-                created_event = (
-                    service.events()
-                    .update(
-                        calendarId=calendar_id,
-                        eventId=original_event_id,
-                        body=google_event,
-                    )
-                    .execute()
-                )
-            else:
-                raise ValueError(f"Original recurring event not found for exception: {event['uid']}")
-        else:
-            created_event = (
-                service.events()
-                .insert(
-                    calendarId=calendar_id,
-                    body=google_event,
-                )
-                .execute()
-            )
+            .execute()
+        )
 
         event["google_event_id"] = created_event["id"]
         print(f"Event created: {created_event.get('htmlLink')}")
