@@ -5,6 +5,9 @@ from typing import Any, Dict
 from caldav import Calendar as CalDAVCalendar
 from caldav import DAVClient, Principal
 from icalendar import Calendar
+from logger import setup_logger
+
+logger = setup_logger(__name__)
 
 EventDict = Dict[str, Any]
 EventsDict = Dict[str, EventDict]
@@ -21,8 +24,11 @@ def connect_to_caldav(url: str, username: str, password: str) -> Principal:
     Returns:
         Principal: The authenticated CalDAV principal object.
     """
+    logger.info(f"Connecting to CalDAV server at {url}")
     client = DAVClient(url, username=username, password=password)
-    return client.principal()
+    principal = client.principal()
+    logger.info("Successfully connected to CalDAV server")
+    return principal
 
 
 def get_calendar(principal: Principal, calendar_name: str) -> CalDAVCalendar:
@@ -38,15 +44,22 @@ def get_calendar(principal: Principal, calendar_name: str) -> CalDAVCalendar:
     Raises:
         ValueError: If no matching calendar is found.
     """
+    logger.info("Retrieving list of calendars")
     calendars = principal.calendars()
     if not calendars:
-        raise ValueError("No calendars found on the server.")
+        error_msg = "No calendars found on the server"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
+    logger.debug(f"Found {len(calendars)} calendars")
     for cal in calendars:
         if cal.name.lower() == calendar_name.lower():
+            logger.info(f"Found matching calendar: {cal.name}")
             return cal
 
-    raise ValueError(f"No calendar named '{calendar_name}' found.")
+    error_msg = f"No calendar named '{calendar_name}' found"
+    logger.error(error_msg)
+    raise ValueError(error_msg)
 
 
 def _process_exdate(exdate: Any) -> list:
@@ -87,11 +100,16 @@ def fetch_events(calendar: CalDAVCalendar) -> EventsDict:
     Returns:
         EventsDict: Dictionary of events indexed by their UIDs.
     """
+    logger.info(f"Fetching events from calendar: {calendar.name}")
     events: EventsDict = {}
+    event_count = 0
+    recurrence_count = 0
+
     for event in calendar.events():
         ical = Calendar.from_ical(event.data)
         for component in ical.walk():
             if component.name == "VEVENT":
+                event_count += 1
                 uid = str(component.get("UID"))
                 dtstart = component.get("DTSTART")
                 dtend = component.get("DTEND")
@@ -102,6 +120,7 @@ def fetch_events(calendar: CalDAVCalendar) -> EventsDict:
                 recurrence_id = component.get("RECURRENCE-ID")
                 if recurrence_id:
                     uid = f"{uid}-{recurrence_id.dt.isoformat()}"
+                    recurrence_count += 1
 
                 description = component.get("DESCRIPTION")
                 description = str(description) if description else ""
@@ -123,4 +142,5 @@ def fetch_events(calendar: CalDAVCalendar) -> EventsDict:
                     "google_event_id": None,
                 }
 
+    logger.info(f"Retrieved {event_count} events ({recurrence_count} recurring instances) from CalDAV calendar")
     return events

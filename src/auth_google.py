@@ -8,6 +8,9 @@ from google.auth.credentials import Credentials
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import Resource, build
+from logger import setup_logger
+
+logger = setup_logger(__name__)
 
 SCOPES: List[str] = ["https://www.googleapis.com/auth/calendar"]
 
@@ -23,16 +26,20 @@ def authenticate_google() -> Resource:
     """
     creds: Credentials | None = None
     if os.path.exists("token.pickle"):
+        logger.debug("Loading existing credentials from token.pickle")
         with open("token.pickle", "rb") as token:
             creds = pickle.load(token)
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
+            logger.info("Refreshing expired credentials")
             creds.refresh(Request())
         else:
+            logger.info("Starting new OAuth2 flow")
             flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
             creds = flow.run_local_server(port=0)
 
+        logger.debug("Saving credentials to token.pickle")
         with open("token.pickle", "wb") as token:
             pickle.dump(creds, token)
 
@@ -52,11 +59,16 @@ def search_calendar_id(service: Resource, calendar_name: str) -> str:
     Raises:
         ValueError: If the target calendar is not found.
     """
+    logger.info(f"Searching for calendar: {calendar_name}")
     calendars_result = service.calendarList().list().execute()
     calendars = calendars_result.get("items", [])
+    logger.debug(f"Found {len(calendars)} calendars in total")
 
     for calendar in calendars:
         if calendar["summary"].lower() == calendar_name.lower():
+            logger.info(f"Found matching calendar with ID: {calendar['id']}")
             return calendar["id"]
 
-    raise ValueError(f"No calendar named '{calendar_name}' found.")
+    error_msg = f"No calendar named '{calendar_name}' found"
+    logger.error(error_msg)
+    raise ValueError(error_msg)

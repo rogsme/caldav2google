@@ -5,6 +5,7 @@ import os
 from auth_google import authenticate_google, search_calendar_id
 from caldav_client import connect_to_caldav, fetch_events, get_calendar
 from dotenv import load_dotenv
+from logger import setup_logger
 from sync_logic import (
     add_event_to_google,
     compare_events,
@@ -13,6 +14,8 @@ from sync_logic import (
     load_local_sync,
     save_local_sync,
 )
+
+logger = setup_logger(__name__)
 
 load_dotenv()
 
@@ -27,43 +30,50 @@ GOOGLE_CALENDAR_NAME = os.getenv("GOOGLE_CALENDAR_NAME")
 def main() -> None:
     """Run the calendar synchronization process."""
     try:
-        print("Authenticating with Google Calendar...")
+        logger.info("Starting calendar synchronization process")
+
+        logger.info("Authenticating with Google Calendar...")
         service = authenticate_google()
         google_calendar_id = search_calendar_id(service, GOOGLE_CALENDAR_NAME)
+        logger.info("Successfully authenticated with Google Calendar")
 
-        print("Connecting to CalDAV server...")
+        logger.info("Connecting to CalDAV server...")
         principal = connect_to_caldav(CALDAV_URL, CALDAV_USERNAME, CALDAV_PASSWORD)
         caldav_calendar = get_calendar(principal, CALDAV_CALENDAR_NAME)
+        logger.info("Successfully connected to CalDAV server")
 
-        print(f"Fetching events from CalDAV calendar: {caldav_calendar.name}")
+        logger.info(f"Fetching events from CalDAV calendar: {caldav_calendar.name}")
         server_events = fetch_events(caldav_calendar)
+        logger.info(f"Retrieved {len(server_events)} events from CalDAV")
 
-        print("Loading local sync data...")
+        logger.info("Loading local sync data...")
         local_events = load_local_sync(LOCAL_SYNC_FILE)
+        logger.info(f"Loaded {len(local_events)} events from local sync file")
 
-        print("Comparing events...")
+        logger.info("Comparing events...")
         new_events, updated_events, deleted_events = compare_events(local_events, server_events)
 
-        print(f"Adding/Updating {len(new_events) + len(updated_events)} events to Google Calendar...")
+        logger.info(f"Adding {len(new_events)} new events and updating {len(updated_events)} events in Google Calendar")
         for event in new_events + updated_events:
             add_event_to_google(service, event, google_calendar_id)
 
-        print(f"Deleting {len(deleted_events)} events from Google Calendar...")
+        logger.info(f"Deleting {len(deleted_events)} events from Google Calendar")
         for event in deleted_events:
             delete_event_from_google(service, event, google_calendar_id)
 
-        print("Saving updated sync data...")
+        logger.info("Saving updated sync data...")
         save_local_sync(LOCAL_SYNC_FILE, server_events)
 
-        print("Sync process completed successfully.")
+        logger.info("Sync process completed successfully")
 
         if error_events:
-            print("The following events encountered errors during sync:")
+            logger.warning("The following events encountered errors during sync:")
             for event in error_events:
-                print(event)
+                logger.warning(f"Failed event: {event['summary']} (UID: {event['uid']})")
 
     except Exception as e:
-        print(f"Error occurred during sync: {e}")
+        logger.error(f"Error occurred during sync: {str(e)}", exc_info=True)
+        raise
 
 
 if __name__ == "__main__":
