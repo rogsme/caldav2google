@@ -60,7 +60,6 @@ def compare_events(
         if uid not in local_events:
             new_events.append(event)
         elif event["last_modified"] != local_events[uid].get("last_modified"):
-            # Preserve the Google Calendar event ID when updating
             event["google_event_id"] = local_events[uid].get("google_event_id")
             updated_events.append(event)
 
@@ -83,13 +82,68 @@ def add_event_to_google(service: Resource, event: EventDict, calendar_id: str) -
         print(f"Adding event to Google Calendar: {event['summary']}")
         google_event = {
             "summary": event["summary"],
+            "description": event.get("description", ""),
+            "location": event.get("location", ""),
             "start": {"dateTime": event["start"], "timeZone": "UTC"},
             "end": {"dateTime": event["end"], "timeZone": "UTC"},
         }
-        created_event = service.events().insert(calendarId=calendar_id, body=google_event).execute()
+
+        if event.get("rrule"):
+            rrule_parts = []
+            for key, value in event["rrule"].items():
+                if isinstance(value, list):
+                    value = ",".join(str(v) for v in value)
+                rrule_parts.append(f"{key}={value}")
+            google_event["recurrence"] = [f"RRULE:{';'.join(rrule_parts)}"]
+
+            if event.get("exdate"):
+                exdates = [f"EXDATE;TZID=UTC:{date}" for date in event["exdate"]]
+                google_event["recurrence"].extend(exdates)
+
+        if event.get("recurrence_id"):
+            original_id = event["uid"].rsplit("-", 1)[0]
+            instance_id = event["recurrence_id"]
+
+            original_events = (
+                service.events()
+                .list(
+                    calendarId=calendar_id,
+                    iCalUID=original_id,
+                )
+                .execute()
+                .get("items", [])
+            )
+
+            if original_events:
+                original_event_id = original_events[0]["id"]
+                google_event["originalStartTime"] = {
+                    "dateTime": instance_id,
+                    "timeZone": "UTC",
+                }
+                created_event = (
+                    service.events()
+                    .update(
+                        calendarId=calendar_id,
+                        eventId=original_event_id,
+                        body=google_event,
+                    )
+                    .execute()
+                )
+            else:
+                raise ValueError(f"Original recurring event not found for exception: {event['uid']}")
+        else:
+            created_event = (
+                service.events()
+                .insert(
+                    calendarId=calendar_id,
+                    body=google_event,
+                )
+                .execute()
+            )
+
         event["google_event_id"] = created_event["id"]
         print(f"Event created: {created_event.get('htmlLink')}")
-        time.sleep(0.5)  # Prevent rate-limiting
+        time.sleep(0.5)
     except Exception as e:
         print(f"Failed to add event: {event['summary']} - {e}")
         error_events.append(event)
