@@ -145,8 +145,43 @@ def save_local_sync(file_path: str, events: EventsDict) -> None:
                         logger.error(f"Problematic field: {key} = {value} (type: {type(value)})")
 
 
+def _create_google_event_body(event: EventDict) -> Dict[str, Any]:
+    """Create the event body for Google Calendar API.
+
+    Args:
+        event: Dictionary containing event details.
+
+    Returns:
+        Dict[str, Any]: Formatted event body for Google Calendar API.
+    """
+    google_event = {
+        "summary": event["summary"],
+        "description": event.get("description", ""),
+        "location": event.get("location", ""),
+        "start": {"dateTime": event["start"], "timeZone": "UTC"},
+        "end": {"dateTime": event["end"], "timeZone": "UTC"},
+    }
+
+    if event.get("rrule"):
+        logger.debug(f"Processing recurring event rules for {event['summary']}")
+        rrule_parts = []
+        for key, value in event["rrule"].items():
+            if isinstance(value, list):
+                value = [item.isoformat() if isinstance(item, datetime) else item for item in value]
+                value = ",".join(str(v) for v in value)
+            rrule_parts.append(f"{key}={value}")
+        google_event["recurrence"] = [f"RRULE:{';'.join(rrule_parts)}"]
+
+        if event.get("exdate"):
+            logger.debug(f"Processing {len(event['exdate'])} excluded dates")
+            exdates = [f"EXDATE;TZID=UTC:{date}" for date in event["exdate"]]
+            google_event["recurrence"].extend(exdates)
+
+    return google_event
+
+
 def add_event_to_google(service: Resource, event: EventDict, calendar_id: str) -> None:
-    """Add a single event to Google Calendar.
+    """Add or update a single event in Google Calendar.
 
     Args:
         service: Authenticated Google Calendar API service object.
@@ -156,45 +191,37 @@ def add_event_to_google(service: Resource, event: EventDict, calendar_id: str) -
     logger.info(f"Processing event: {event['summary']} (UID: {event['uid']})")
 
     try:
-        google_event = {
-            "summary": event["summary"],
-            "description": event.get("description", ""),
-            "location": event.get("location", ""),
-            "start": {"dateTime": event["start"], "timeZone": "UTC"},
-            "end": {"dateTime": event["end"], "timeZone": "UTC"},
-        }
+        google_event = _create_google_event_body(event)
 
-        if event.get("rrule"):
-            logger.debug(f"Processing recurring event rules for {event['summary']}")
-            rrule_parts = []
-            for key, value in event["rrule"].items():
-                if isinstance(value, list):
-                    value = [item.isoformat() if isinstance(item, datetime) else item for item in value]
-                    value = ",".join(str(v) for v in value)
-                rrule_parts.append(f"{key}={value}")
-            google_event["recurrence"] = [f"RRULE:{';'.join(rrule_parts)}"]
-
-            if event.get("exdate"):
-                logger.debug(f"Processing {len(event['exdate'])} excluded dates")
-                exdates = [f"EXDATE;TZID=UTC:{date}" for date in event["exdate"]]
-                google_event["recurrence"].extend(exdates)
-
-        created_event = (
-            service.events()
-            .insert(
-                calendarId=calendar_id,
-                body=google_event,
+        if event.get("google_event_id"):
+            logger.info(f"Updating existing event in Google Calendar: {event['summary']} (Google ID: {event['google_event_id']})")
+            created_event = (
+                service.events()
+                .update(
+                    calendarId=calendar_id,
+                    eventId=event["google_event_id"],
+                    body=google_event,
+                )
+                .execute()
             )
-            .execute()
-        )
-
-        event["google_event_id"] = created_event["id"]
-        logger.info(f"Successfully created event: {event['summary']} (Google ID: {created_event['id']})")
+            logger.info(f"Successfully updated event: {event['summary']} (Google ID: {created_event['id']})")
+        else:
+            logger.info(f"Creating new event in Google Calendar: {event['summary']}")
+            created_event = (
+                service.events()
+                .insert(
+                    calendarId=calendar_id,
+                    body=google_event,
+                )
+                .execute()
+            )
+            event["google_event_id"] = created_event["id"]
+            logger.info(f"Successfully created event: {event['summary']} (Google ID: {created_event['id']})")
 
         time.sleep(0.5)
 
     except Exception as e:
-        logger.error(f"Failed to add event {event['summary']} (UID: {event['uid']})")
+        logger.error(f"Failed to add/update event {event['summary']} (UID: {event['uid']})")
         logger.error(f"Error: {str(e)}")
         error_events.append(event)
 
