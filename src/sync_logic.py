@@ -236,9 +236,8 @@ def delete_event_from_google(service: Resource, event: EventDict, calendar_id: s
     """
     google_event_id = event.get("google_event_id")
     if not google_event_id:
-        error_msg = f"Cannot delete event {event['summary']} (UID: {event['uid']}): missing Google Calendar ID"
-        logger.error(error_msg)
-        raise ValueError(error_msg)
+        logger.info(f"No Google Calendar ID found for event {event['summary']} (UID: {event['uid']})")
+        return
 
     try:
         logger.info(f"Deleting event: {event['summary']} (Google ID: {google_event_id})")
