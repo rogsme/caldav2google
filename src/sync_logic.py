@@ -57,13 +57,17 @@ def compare_events(
 
     logger.info(f"Comparing {len(server_events)} server events with {len(local_events)} local events")
 
+    # Update server_events with Google event IDs from local_events
+    for uid, event in server_events.items():
+        if uid in local_events:
+            event["google_event_id"] = local_events[uid].get("google_event_id")
+
     for uid, event in server_events.items():
         if uid not in local_events:
             logger.debug(f"New event found: {event['summary']} (UID: {uid})")
             new_events.append(event)
         elif event["last_modified"] != local_events[uid].get("last_modified"):
             logger.debug(f"Modified event found: {event['summary']} (UID: {uid})")
-            event["google_event_id"] = local_events[uid].get("google_event_id")
             updated_events.append(event)
 
     for uid, event in local_events.items():
@@ -236,7 +240,7 @@ def delete_event_from_google(service: Resource, event: EventDict, calendar_id: s
     """
     google_event_id = event.get("google_event_id")
     if not google_event_id:
-        logger.info(f"No Google Calendar ID found for event {event['summary']} (UID: {event['uid']})")
+        logger.warning(f"No Google Calendar ID found for event {event['summary']} (UID: {event['uid']})")
         return
 
     try:
