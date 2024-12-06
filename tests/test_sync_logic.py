@@ -2,7 +2,7 @@
 
 import json
 from datetime import datetime, timezone
-from unittest.mock import mock_open, patch
+from unittest.mock import call, mock_open, patch
 
 import pytest
 
@@ -11,6 +11,7 @@ from src.sync_logic import (
     _sanitize_event_for_json,
     add_event_to_google,
     compare_events,
+    delete_event_from_google,
     error_events,
     load_local_sync,
 )
@@ -50,6 +51,18 @@ def sample_event():
         "start": "2024-01-01T10:00:00+00:00",
         "end": "2024-01-01T11:00:00+00:00",
         "google_event_id": None,
+    }
+
+
+@pytest.fixture
+def sample_event_for_deletion():
+    """Create a sample event with Google Calendar ID."""
+    return {
+        "uid": "test-uid-1",
+        "summary": "Event To Delete",
+        "google_event_id": "google-event-123",
+        "start": "2024-01-01T10:00:00+00:00",
+        "end": "2024-01-01T11:00:00+00:00",
     }
 
 
@@ -427,4 +440,106 @@ def test_add_event_verifies_required_fields(mock_google_service, mock_sleep):
     # Verify
     assert len(error_events) == 1
     assert error_events[0] == incomplete_event
+    mock_sleep.assert_called_once_with(0.5)
+
+
+def test_delete_event_successful(mock_google_service, sample_event_for_deletion, mock_sleep):
+    """Test successful deletion of an event from Google Calendar."""
+    # Setup mock
+    events = mock_google_service.events.return_value
+    delete = events.delete.return_value
+    delete.execute.return_value = None  # Delete operation returns None on success
+
+    # Execute
+    delete_event_from_google(mock_google_service, sample_event_for_deletion, "calendar-id")
+
+    # Verify
+    events.delete.assert_called_once_with(
+        calendarId="calendar-id",
+        eventId="google-event-123",
+    )
+    delete.execute.assert_called_once()
+    mock_sleep.assert_called_once_with(0.5)
+
+
+def test_delete_event_no_google_id(mock_google_service, mock_sleep):
+    """Test attempting to delete an event with no Google Calendar ID."""
+    event_without_id = {
+        "uid": "test-uid-1",
+        "summary": "Event Without Google ID",
+        "google_event_id": None,
+    }
+
+    # Execute
+    delete_event_from_google(mock_google_service, event_without_id, "calendar-id")
+
+    # Verify
+    mock_google_service.events.return_value.delete.assert_not_called()
+    mock_sleep.assert_called_once_with(0.5)
+
+
+def test_delete_event_api_error(mock_google_service, sample_event_for_deletion, mock_sleep):
+    """Test handling of API errors when deleting an event."""
+    # Setup mock to raise an exception
+    events = mock_google_service.events.return_value
+    delete = events.delete.return_value
+    delete.execute.side_effect = Exception("API Error")
+
+    # Execute
+    delete_event_from_google(mock_google_service, sample_event_for_deletion, "calendar-id")
+
+    # Verify
+    events.delete.assert_called_once()
+    delete.execute.assert_called_once()
+    mock_sleep.assert_called_once_with(0.5)
+
+
+def test_delete_event_empty_id(mock_google_service, mock_sleep):
+    """Test attempting to delete an event with an empty Google Calendar ID."""
+    event_empty_id = {
+        "uid": "test-uid-1",
+        "summary": "Event With Empty ID",
+        "google_event_id": "",
+    }
+
+    # Execute
+    delete_event_from_google(mock_google_service, event_empty_id, "calendar-id")
+
+    # Verify
+    mock_google_service.events.return_value.delete.assert_not_called()
+    mock_sleep.assert_called_once_with(0.5)
+
+
+def test_delete_multiple_events_rate_limiting(mock_google_service, sample_event_for_deletion, mock_sleep):
+    """Test rate limiting when deleting multiple events."""
+    # Create two events
+    event1 = sample_event_for_deletion
+    event2 = {**sample_event_for_deletion, "google_event_id": "google-event-456"}
+
+    # Execute
+    delete_event_from_google(mock_google_service, event1, "calendar-id")
+    delete_event_from_google(mock_google_service, event2, "calendar-id")
+
+    # Verify
+    assert mock_sleep.call_count == 2  # noqa PLR2004
+    mock_sleep.assert_has_calls(
+        [
+            call(0.5),
+            call(0.5),
+        ],
+    )
+
+
+def test_delete_event_missing_required_fields(mock_google_service, mock_sleep):
+    """Test attempting to delete an event with missing required fields."""
+    incomplete_event = {
+        # Missing summary and uid
+        "google_event_id": "google-event-123",
+    }
+
+    # Execute
+    delete_event_from_google(mock_google_service, incomplete_event, "calendar-id")
+
+    # Verify
+    mock_google_service.events.return_value.delete.assert_called_once()
     mock_sleep.assert_called_once_with(0.5)

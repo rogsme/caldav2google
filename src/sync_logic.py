@@ -242,18 +242,24 @@ def delete_event_from_google(service: Resource, event: EventDict, calendar_id: s
         event: Dictionary containing event details.
         calendar_id: ID of the target Google Calendar.
     """
-    google_event_id = event.get("google_event_id")
-    if not google_event_id:
-        logger.warning(f"No Google Calendar ID found for event {event['summary']} (UID: {event['uid']})")
-        return
-
     try:
-        logger.info(f"Deleting event: {event['summary']} (Google ID: {google_event_id})")
-        service.events().delete(calendarId=calendar_id, eventId=google_event_id).execute()
-        logger.info(f"Successfully deleted event: {event['summary']}")
+        google_event_id = event.get("google_event_id")
+        if not google_event_id:
+            logger.warning(
+                f"No Google Calendar ID found for event {event.get('summary', 'Unknown')} "
+                f"(UID: {event.get('uid', 'Unknown')})",
+            )
+            return
 
-        time.sleep(0.5)
+        summary = event.get("summary", "Unknown Event")
+
+        logger.info(f"Deleting event: {summary} (Google ID: {google_event_id})")
+        service.events().delete(calendarId=calendar_id, eventId=google_event_id).execute()
+        logger.info(f"Successfully deleted event: {summary}")
 
     except Exception as e:
-        logger.error(f"Failed to delete event: {event['summary']} (UID: {event['uid']})")
+        logger.error(f"Failed to delete event: {event.get('summary', 'Unknown')} (UID: {event.get('uid', 'Unknown')})")
         logger.error(f"Error: {str(e)}")
+
+    finally:
+        time.sleep(0.5)
