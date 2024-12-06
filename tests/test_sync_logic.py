@@ -1,8 +1,12 @@
-"""Tests for the sync_logic module."""
+"""Tests for the load_local_sync function in sync_logic module."""
 
+import json
 from datetime import datetime, timezone
+from unittest.mock import mock_open, patch
 
-from src.sync_logic import _sanitize_event_for_json, compare_events
+import pytest
+
+from src.sync_logic import _sanitize_event_for_json, compare_events, load_local_sync
 
 
 def test_compare_events_new(sample_event_data):
@@ -67,3 +71,75 @@ def test_sanitize_event_for_json(sample_event_data):
     assert sanitized["rrule"]["COUNT"] == 4  # noqa PLR2004
     assert isinstance(sanitized["rrule"]["UNTIL"], datetime)
     assert sanitized["rrule"]["BYDAY"] == ["MO", "WE", "FR"]
+
+
+@pytest.fixture
+def sample_sync_data():
+    """Create sample sync data for testing."""
+    return {
+        "test-uid-1": {
+            "uid": "test-uid-1",
+            "summary": "Test Event 1",
+            "description": "Test Description",
+            "start": "2024-01-01T10:00:00+00:00",
+            "end": "2024-01-01T11:00:00+00:00",
+            "last_modified": "2024-01-01T09:00:00+00:00",
+            "google_event_id": "google-event-1",
+        },
+    }
+
+
+def test_load_local_sync_file_exists(sample_sync_data):
+    """Test loading sync data from an existing valid JSON file."""
+    mock_json = json.dumps(sample_sync_data)
+
+    with patch("builtins.open", mock_open(read_data=mock_json)), patch("os.path.exists", return_value=True):
+        result = load_local_sync("fake_path.json")
+
+    assert result == sample_sync_data
+    assert len(result) == 1
+    assert "test-uid-1" in result
+    assert result["test-uid-1"]["summary"] == "Test Event 1"
+    assert result["test-uid-1"]["google_event_id"] == "google-event-1"
+
+
+def test_load_local_sync_file_not_exists():
+    """Test loading sync data when file doesn't exist."""
+    with patch("os.path.exists", return_value=False):
+        result = load_local_sync("nonexistent.json")
+
+    assert result == {}
+
+
+def test_load_local_sync_invalid_json():
+    """Test loading sync data from a corrupted JSON file."""
+    invalid_json = "{ this is not valid json }"
+
+    with patch("builtins.open", mock_open(read_data=invalid_json)), patch("os.path.exists", return_value=True):
+        result = load_local_sync("corrupted.json")
+
+    assert result == {}
+
+
+def test_load_local_sync_file_read_error():
+    """Test handling of file read errors."""
+    with patch("os.path.exists", return_value=True), patch("builtins.open", side_effect=IOError("Mock IO Error")):
+        result = load_local_sync("error.json")
+
+    assert result == {}
+
+
+def test_load_local_sync_empty_file():
+    """Test loading sync data from an empty file."""
+    with patch("builtins.open", mock_open(read_data="")), patch("os.path.exists", return_value=True):
+        result = load_local_sync("empty.json")
+
+    assert result == {}
+
+
+def test_load_local_sync_whitespace_only():
+    """Test loading sync data from a file containing only whitespace."""
+    with patch("builtins.open", mock_open(read_data="   \n   \t   ")), patch("os.path.exists", return_value=True):
+        result = load_local_sync("whitespace.json")
+
+    assert result == {}
