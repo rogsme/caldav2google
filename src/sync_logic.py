@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Tuple
 
 from googleapiclient.discovery import Resource
+
 from logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -198,7 +199,9 @@ def add_event_to_google(service: Resource, event: EventDict, calendar_id: str) -
         google_event = _create_google_event_body(event)
 
         if event.get("google_event_id"):
-            logger.info(f"Updating existing event in Google Calendar: {event['summary']} (Google ID: {event['google_event_id']})")
+            logger.info(
+                f"Updating existing event in Google Calendar: {event['summary']} (GoogleID: {event['google_event_id']})",
+            )
             created_event = (
                 service.events()
                 .update(
