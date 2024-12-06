@@ -6,7 +6,7 @@
 
 [![codecov](https://codecov.io/gl/rogs/caldav2google/graph/badge.svg?token=W12CFCUKP0)](https://codecov.io/gl/rogs/caldav2google)
 
-A Python utility to synchronize events from a CalDAV calendar to Google Calendar, maintaining a local state to track changes. 
+A Python utility to synchronize events from a CalDAV calendar to Google Calendar, maintaining a local state to track changes.
 
 ## Features
 - One-way synchronization from CalDAV to Google Calendar
@@ -92,6 +92,22 @@ On first run:
 - Grant requested calendar permissions
 - Token is saved as `token.pickle` for future use
 
+## Testing
+
+To run the test suite:
+
+```bash
+poetry run pytest
+```
+
+This will run all tests in the `tests/` directory.
+
+To generate a test coverage report:
+
+```bash
+poetry run pytest --cov=src tests/
+```
+
 ## Project Structure
 
 ```
@@ -100,6 +116,7 @@ src/
 ├── caldav_client.py    # CalDAV server connections & event fetching
 ├── main.py             # Main synchronization orchestration
 ├── sync_logic.py       # Core synchronization & event comparison logic
+├── logger.py           # Logging setup & configuration
 pyproject.toml          # Poetry project & tool configuration
 env.example             # Environment variables template
 .env                    # Active environment variables
@@ -107,6 +124,7 @@ README.md               # Project documentation
 credentials.json        # Google OAuth credentials
 token.pickle            # Stored Google authentication token
 calendar_sync.json      # Local synchronization state
+tests/                  # Test suite
 ```
 
 ## Configuration Files
@@ -181,6 +199,8 @@ The script provides robust error handling:
 poetry run pre-commit install
 ```
 
+This sets up pre-commit hooks to enforce code quality and consistency.
+
 ## Contributing
 
 1. Fork the repository
@@ -208,3 +228,4 @@ Built with:
 - [python-dotenv](https://pypi.org/project/python-dotenv/) - Environment management
 - [Poetry](https://python-poetry.org/) - Dependency management
 - [Ruff](https://github.com/astral-sh/ruff) - Python linter
+- [pytest](https://docs.pytest.org/) - Testing framework
