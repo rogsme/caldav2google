@@ -84,7 +84,7 @@ To interact with the Google Calendar API, follow these steps:
 
 2. Run synchronization:
    ```bash
-   python src/main.py
+   PYTHONPATH=. python src/main.py
    ```
 
 On first run:
