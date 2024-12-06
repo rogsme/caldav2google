@@ -14,6 +14,7 @@ from src.sync_logic import (
     delete_event_from_google,
     error_events,
     load_local_sync,
+    save_local_sync,
 )
 
 
@@ -300,18 +301,14 @@ def test_create_google_event_body_with_datetime_in_rrule():
 
 def test_add_new_event_to_google(mock_google_service, sample_event, mock_google_response, mock_sleep):
     """Test adding a new event to Google Calendar."""
-    # Setup mock
     events = mock_google_service.events.return_value
     insert = events.insert.return_value
     insert.execute.return_value = mock_google_response
 
-    # Clear any previous error events
     error_events.clear()
 
-    # Execute
     add_event_to_google(mock_google_service, sample_event, "calendar-id")
 
-    # Verify
     events.insert.assert_called_once()
     insert.execute.assert_called_once()
     assert sample_event["google_event_id"] == "google-event-123"
@@ -321,21 +318,16 @@ def test_add_new_event_to_google(mock_google_service, sample_event, mock_google_
 
 def test_update_existing_event_in_google(mock_google_service, sample_event, mock_google_response, mock_sleep):
     """Test updating an existing event in Google Calendar."""
-    # Modify sample event to include google_event_id
     sample_event["google_event_id"] = "existing-event-id"
 
-    # Setup mock
     events = mock_google_service.events.return_value
     update = events.update.return_value
     update.execute.return_value = mock_google_response
 
-    # Clear any previous error events
     error_events.clear()
 
-    # Execute
     add_event_to_google(mock_google_service, sample_event, "calendar-id")
 
-    # Verify
     events.update.assert_called_once()
     update.execute.assert_called_once()
     assert len(error_events) == 0
@@ -344,18 +336,14 @@ def test_update_existing_event_in_google(mock_google_service, sample_event, mock
 
 def test_add_event_to_google_api_error(mock_google_service, sample_event, mock_sleep):
     """Test handling of API errors when adding event to Google Calendar."""
-    # Setup mock to raise an exception
     events = mock_google_service.events.return_value
     insert = events.insert.return_value
     insert.execute.side_effect = Exception("API Error")
 
-    # Clear any previous error events
     error_events.clear()
 
-    # Execute
     add_event_to_google(mock_google_service, sample_event, "calendar-id")
 
-    # Verify
     events.insert.assert_called_once()
     insert.execute.assert_called_once()
     assert len(error_events) == 1
@@ -365,25 +353,20 @@ def test_add_event_to_google_api_error(mock_google_service, sample_event, mock_s
 
 def test_add_recurring_event_to_google(mock_google_service, sample_event, mock_google_response, mock_sleep):
     """Test adding a recurring event to Google Calendar."""
-    # Add recurrence rule to sample event
     sample_event["rrule"] = {
         "FREQ": "WEEKLY",
         "COUNT": 4,
         "BYDAY": ["MO", "WE", "FR"],
     }
 
-    # Setup mock
     events = mock_google_service.events.return_value
     insert = events.insert.return_value
     insert.execute.return_value = mock_google_response
 
-    # Clear any previous error events
     error_events.clear()
 
-    # Execute
     add_event_to_google(mock_google_service, sample_event, "calendar-id")
 
-    # Verify
     events.insert.assert_called_once()
     call_args = events.insert.call_args[1]
     assert "recurrence" in call_args["body"]
@@ -395,21 +378,16 @@ def test_add_recurring_event_to_google(mock_google_service, sample_event, mock_g
 
 def test_update_event_with_api_error(mock_google_service, sample_event, mock_sleep):
     """Test handling of API errors when updating an existing event."""
-    # Setup event with existing Google ID
     sample_event["google_event_id"] = "existing-event-id"
 
-    # Setup mock to raise an exception
     events = mock_google_service.events.return_value
     update = events.update.return_value
     update.execute.side_effect = Exception("Update API Error")
 
-    # Clear any previous error events
     error_events.clear()
 
-    # Execute
     add_event_to_google(mock_google_service, sample_event, "calendar-id")
 
-    # Verify
     events.update.assert_called_once()
     update.execute.assert_called_once()
     assert len(error_events) == 1
@@ -419,25 +397,19 @@ def test_update_event_with_api_error(mock_google_service, sample_event, mock_sle
 
 def test_add_event_verifies_required_fields(mock_google_service, mock_sleep):
     """Test that adding event with missing required fields is handled properly."""
-    # Create event missing required fields
     incomplete_event = {
         "uid": "test-uid-1",
         "summary": "Test Event",
-        # Missing start and end times
     }
 
-    # Setup mock
     events = mock_google_service.events.return_value
     insert = events.insert.return_value
     insert.execute.return_value = {"id": "new-id"}
 
-    # Clear any previous error events
     error_events.clear()
 
-    # Execute
     add_event_to_google(mock_google_service, incomplete_event, "calendar-id")
 
-    # Verify
     assert len(error_events) == 1
     assert error_events[0] == incomplete_event
     mock_sleep.assert_called_once_with(0.5)
@@ -445,15 +417,12 @@ def test_add_event_verifies_required_fields(mock_google_service, mock_sleep):
 
 def test_delete_event_successful(mock_google_service, sample_event_for_deletion, mock_sleep):
     """Test successful deletion of an event from Google Calendar."""
-    # Setup mock
     events = mock_google_service.events.return_value
     delete = events.delete.return_value
     delete.execute.return_value = None  # Delete operation returns None on success
 
-    # Execute
     delete_event_from_google(mock_google_service, sample_event_for_deletion, "calendar-id")
 
-    # Verify
     events.delete.assert_called_once_with(
         calendarId="calendar-id",
         eventId="google-event-123",
@@ -470,25 +439,20 @@ def test_delete_event_no_google_id(mock_google_service, mock_sleep):
         "google_event_id": None,
     }
 
-    # Execute
     delete_event_from_google(mock_google_service, event_without_id, "calendar-id")
 
-    # Verify
     mock_google_service.events.return_value.delete.assert_not_called()
     mock_sleep.assert_called_once_with(0.5)
 
 
 def test_delete_event_api_error(mock_google_service, sample_event_for_deletion, mock_sleep):
     """Test handling of API errors when deleting an event."""
-    # Setup mock to raise an exception
     events = mock_google_service.events.return_value
     delete = events.delete.return_value
     delete.execute.side_effect = Exception("API Error")
 
-    # Execute
     delete_event_from_google(mock_google_service, sample_event_for_deletion, "calendar-id")
 
-    # Verify
     events.delete.assert_called_once()
     delete.execute.assert_called_once()
     mock_sleep.assert_called_once_with(0.5)
@@ -502,25 +466,20 @@ def test_delete_event_empty_id(mock_google_service, mock_sleep):
         "google_event_id": "",
     }
 
-    # Execute
     delete_event_from_google(mock_google_service, event_empty_id, "calendar-id")
 
-    # Verify
     mock_google_service.events.return_value.delete.assert_not_called()
     mock_sleep.assert_called_once_with(0.5)
 
 
 def test_delete_multiple_events_rate_limiting(mock_google_service, sample_event_for_deletion, mock_sleep):
     """Test rate limiting when deleting multiple events."""
-    # Create two events
     event1 = sample_event_for_deletion
     event2 = {**sample_event_for_deletion, "google_event_id": "google-event-456"}
 
-    # Execute
     delete_event_from_google(mock_google_service, event1, "calendar-id")
     delete_event_from_google(mock_google_service, event2, "calendar-id")
 
-    # Verify
     assert mock_sleep.call_count == 2  # noqa PLR2004
     mock_sleep.assert_has_calls(
         [
@@ -533,13 +492,251 @@ def test_delete_multiple_events_rate_limiting(mock_google_service, sample_event_
 def test_delete_event_missing_required_fields(mock_google_service, mock_sleep):
     """Test attempting to delete an event with missing required fields."""
     incomplete_event = {
-        # Missing summary and uid
         "google_event_id": "google-event-123",
     }
 
-    # Execute
     delete_event_from_google(mock_google_service, incomplete_event, "calendar-id")
 
-    # Verify
     mock_google_service.events.return_value.delete.assert_called_once()
     mock_sleep.assert_called_once_with(0.5)
+
+
+@pytest.fixture
+def sample_events():
+    """Create sample events for testing."""
+    return {
+        "test-uid-1": {
+            "uid": "test-uid-1",
+            "summary": "Test Event 1",
+            "description": "Test Description",
+            "start": "2024-01-01T10:00:00+00:00",
+            "end": "2024-01-01T11:00:00+00:00",
+            "last_modified": "2024-01-01T09:00:00+00:00",
+            "google_event_id": "google-event-1",
+        },
+    }
+
+
+def test_save_local_sync_basic(sample_events):
+    """Test basic saving of events to a file."""
+    m = mock_open()
+
+    with patch("builtins.open", m):
+        save_local_sync("test.json", sample_events)
+
+    write_calls = [call[0][0] for call in m().write.call_args_list]
+
+    written_data = "".join(write_calls)
+
+    saved_events = json.loads(written_data)
+
+    assert "test-uid-1" in saved_events
+    assert saved_events["test-uid-1"]["summary"] == "Test Event 1"
+    assert saved_events["test-uid-1"]["google_event_id"] == "google-event-1"
+
+
+def test_save_local_sync_empty_events():
+    """Test saving an empty events dictionary."""
+    m = mock_open()
+
+    with patch("builtins.open", m):
+        save_local_sync("test.json", {})
+
+    write_calls = [call[0][0] for call in m().write.call_args_list]
+    written_data = "".join(write_calls)
+    saved_events = json.loads(written_data)
+    assert saved_events == {}
+
+
+def test_save_local_sync_unicode_characters():
+    """Test saving events with unicode characters."""
+    events = {
+        "test-uid-1": {
+            "summary": "Test Event with Unicode ñáéíóú",
+            "description": "Description with emojis 🎉🎊",
+            "location": "Location with characters デパート",
+        },
+    }
+
+    m = mock_open()
+
+    with patch("builtins.open", m):
+        save_local_sync("test.json", events)
+
+    write_calls = [call[0][0] for call in m().write.call_args_list]
+    written_data = "".join(write_calls)
+    saved_events = json.loads(written_data)
+
+    assert saved_events["test-uid-1"]["summary"] == "Test Event with Unicode ñáéíóú"
+    assert saved_events["test-uid-1"]["description"] == "Description with emojis 🎉🎊"
+    assert saved_events["test-uid-1"]["location"] == "Location with characters デパート"
+
+
+def test_save_local_sync_nested_data():
+    """Test saving events with deeply nested data structures."""
+    events = {
+        "test-uid-1": {
+            "summary": "Nested Event",
+            "metadata": {
+                "categories": ["work", "important"],
+                "tags": {
+                    "priority": "high",
+                    "project": {
+                        "name": "Test Project",
+                        "phase": 1,
+                    },
+                },
+            },
+        },
+    }
+
+    m = mock_open()
+
+    with patch("builtins.open", m):
+        save_local_sync("test.json", events)
+
+    write_calls = [call[0][0] for call in m().write.call_args_list]
+    written_data = "".join(write_calls)
+    saved_events = json.loads(written_data)
+
+    assert saved_events["test-uid-1"]["metadata"]["categories"] == ["work", "important"]
+    assert saved_events["test-uid-1"]["metadata"]["tags"]["priority"] == "high"
+    assert saved_events["test-uid-1"]["metadata"]["tags"]["project"]["name"] == "Test Project"
+
+
+def test_save_local_sync_write_error():
+    """Test handling of file write errors."""
+    m = mock_open()
+    m.side_effect = IOError("Mock write error")
+
+    with patch("builtins.open", m):
+        save_local_sync("test.json", {"test-uid-1": {"summary": "Test Event"}})
+
+
+def test_save_local_sync_sanitization():
+    """Test that event data is properly sanitized before saving."""
+    events = {
+        "test-uid-1": {
+            "summary": "Test Event",
+            "rrule": {
+                "FREQ": "WEEKLY",
+                "COUNT": 4,
+                "UNTIL": "2024-12-31T00:00:00+00:00",  # Changed from datetime to string
+                "BYDAY": ["MO", "WE", "FR"],
+            },
+        },
+    }
+
+    m = mock_open()
+
+    with patch("builtins.open", m):
+        save_local_sync("test.json", events)
+
+    write_calls = [call[0][0] for call in m().write.call_args_list]
+    written_data = "".join(write_calls)
+    saved_events = json.loads(written_data)
+
+    assert "test-uid-1" in saved_events
+    assert isinstance(saved_events["test-uid-1"]["rrule"], dict)
+    assert saved_events["test-uid-1"]["rrule"]["FREQ"] == "WEEKLY"
+    assert saved_events["test-uid-1"]["rrule"]["COUNT"] == 4  # noqa PLR2004
+    assert saved_events["test-uid-1"]["rrule"]["UNTIL"] == "2024-12-31T00:00:00+00:00"
+    assert saved_events["test-uid-1"]["rrule"]["BYDAY"] == ["MO", "WE", "FR"]
+
+
+def test_save_local_sync_sanitize_error():
+    """Test handling of event sanitization failures."""
+    events = {
+        "valid-event": {
+            "uid": "valid-event",
+            "summary": "Valid Event",
+            "description": "This event should be saved",
+        },
+        "problem-event": {
+            "uid": "problem-event",
+            "summary": "Problem Event",
+            "rrule": {
+                "FREQ": "WEEKLY",
+                "UNTIL": "2024-12-31T00:00:00+00:00",
+            },
+        },
+    }
+
+    def mock_sanitize(event_data):
+        """Mock sanitization that fails for the problem event."""
+        if event_data.get("uid") == "problem-event":
+            raise ValueError("Mock sanitization error")
+        return event_data.copy()
+
+    m = mock_open()
+
+    with patch("builtins.open", m), patch("src.sync_logic._sanitize_event_for_json", side_effect=mock_sanitize):
+        save_local_sync("test.json", events)
+
+    assert m().write.called
+
+    write_calls = [call[0][0] for call in m().write.call_args_list]
+    written_data = "".join(write_calls)
+    saved_events = json.loads(written_data)
+
+    assert "valid-event" in saved_events
+    assert "problem-event" not in saved_events
+    assert saved_events["valid-event"]["summary"] == "Valid Event"
+    assert saved_events["valid-event"]["description"] == "This event should be saved"
+
+
+def test_save_local_sync_type_error_handling():
+    """Test handling of TypeError during JSON serialization and problematic field identification."""
+
+    class UnserializableObject:
+        def __str__(self):
+            return "test object"
+
+    events = {
+        "problem-event": {
+            "uid": "problem-event",
+            "summary": "Event With Bad Data",
+            "normal_field": "This is fine",
+            "bad_field": UnserializableObject(),  # This will cause TypeError
+            "another_bad_field": [1, 2, 3],  # This will also cause TypeError
+        },
+    }
+
+    m = mock_open()
+
+    with patch("builtins.open", m), patch("src.logger.logging.Logger.error") as mock_logger_error:
+        save_local_sync("test.json", events)
+
+    error_calls = mock_logger_error.call_args_list
+
+    assert any(
+        "Failed to save sync file: Object of type UnserializableObject is not JSON serializable" in str(call)
+        for call in error_calls
+    )
+    assert any("JSON serialization failed for event: problem-event" in str(call) for call in error_calls)
+    assert any("Event summary: Event With Bad Data" in str(call) for call in error_calls)
+
+    assert any("bad_field" in str(call) and "UnserializableObject" in str(call) for call in error_calls)
+    assert any("another_bad_field" in str(call) and "set" in str(call) for call in error_calls)
+
+    assert m().write.called
+
+
+def test_save_local_sync_invalid_data_handling():
+    """Test handling of non-serializable data types."""
+    events = {
+        "test-uid-1": {
+            "summary": "Valid Event",
+        },
+        "test-uid-2": {
+            "summary": "Invalid Event",
+            "invalid_data": [1, 2, 3],
+        },
+    }
+
+    m = mock_open()
+
+    with patch("builtins.open", m):
+        save_local_sync("test.json", events)
+
+    assert m().write.called
