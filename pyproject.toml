@@ -20,6 +20,8 @@ pre-commit = "^4.0.1"
 python-lsp-ruff = "^2.2.2"
 python-lsp-server = "^1.12.0"
 ruff = "^0.8.0"
+pytest = "^8.3.4"
+pytest-cov = "^6.0.0"
 
 [build-system]
 requires = ["poetry-core"]
