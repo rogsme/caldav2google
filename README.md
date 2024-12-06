@@ -4,6 +4,8 @@
   <img src="https://gitlab.com/uploads/-/system/project/avatar/64798757/logo.jpg" alt="caldav2google"/>
 </p>
 
+[![codecov](https://codecov.io/gl/rogs/caldav2google/graph/badge.svg?token=W12CFCUKP0)](https://codecov.io/gl/rogs/caldav2google)
+
 A Python utility to synchronize events from a CalDAV calendar to Google Calendar, maintaining a local state to track changes. 
 
 ## Features
