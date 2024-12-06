@@ -1,11 +1,32 @@
 """Tests for the connect_to_caldav function."""
 
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pytest
 from caldav import DAVClient, Principal
 
-from src.caldav_client import connect_to_caldav, get_calendar
+from src.caldav_client import _process_exdate, connect_to_caldav, get_calendar
+
+
+class MockDatetime:
+    """Mock class to simulate datetime objects from iCalendar."""
+
+    def __init__(self, dt):
+        """Init method to store the datetime object."""
+        self.dt = dt
+
+    def isoformat(self):
+        """Implement isoformat to match datetime behavior."""
+        return self.dt.isoformat()
+
+
+class MockDt:
+    """Mock class to simulate dt objects with dts attribute."""
+
+    def __init__(self, dates):
+        """Init method to store the list of datetime objects."""
+        self.dts = [MockDatetime(dt) for dt in dates]
 
 
 def test_get_calendar_found(mock_caldav_principal):
@@ -118,3 +139,130 @@ def test_connect_to_caldav_timeout(mocker):
 
     with pytest.raises(Exception, match="Connection timed out"):
         connect_to_caldav("https://slow.example.com", "user", "pass")
+
+
+def test_process_exdate_none():
+    """Test handling of None input."""
+    assert _process_exdate(None) is None
+
+
+def test_process_exdate_empty_list():
+    """Test handling of empty list input."""
+    assert _process_exdate([]) is None
+
+
+def test_process_exdate_single_date():
+    """Test processing a single date."""
+    dt = datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc)
+    mock_date = MockDatetime(dt)
+
+    result = _process_exdate(mock_date)
+
+    assert result == ["2024-01-01T10:00:00+00:00"]
+
+
+def test_process_exdate_multiple_dates_list():
+    """Test processing a list of dates."""
+    dates = [
+        datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc),
+        datetime(2024, 1, 2, 11, 0, tzinfo=timezone.utc),
+    ]
+    mock_dates = [MockDatetime(dt) for dt in dates]
+
+    result = _process_exdate(mock_dates)
+
+    assert result == [
+        "2024-01-01T10:00:00+00:00",
+        "2024-01-02T11:00:00+00:00",
+    ]
+
+
+def test_process_exdate_vdddlists():
+    """Test processing vDDDLists object."""
+    dates = [
+        datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc),
+        datetime(2024, 1, 2, 11, 0, tzinfo=timezone.utc),
+    ]
+    mock_dt = MockDt(dates)
+
+    result = _process_exdate(mock_dt)
+
+    assert result == [
+        "2024-01-01T10:00:00+00:00",
+        "2024-01-02T11:00:00+00:00",
+    ]
+
+
+def test_process_exdate_list_of_vdddtypes():
+    """Test processing a list containing vDDDTypes objects."""
+    dates = [
+        datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc),
+        datetime(2024, 1, 2, 11, 0, tzinfo=timezone.utc),
+    ]
+    mock_dates = [MockDt([date]) for date in dates]
+
+    result = _process_exdate(mock_dates)
+
+    assert result == [
+        "2024-01-01T10:00:00+00:00",
+        "2024-01-02T11:00:00+00:00",
+    ]
+
+
+def test_process_exdate_invalid_input():
+    """Test handling of invalid input types."""
+    invalid_inputs = [
+        42,
+        "not a date",
+        {"key": "value"},
+    ]
+
+    for invalid_input in invalid_inputs:
+        result = _process_exdate(invalid_input)
+        assert result is None
+
+
+def test_process_exdate_mixed_valid_invalid():
+    """Test processing a list with both valid and invalid date objects."""
+    valid_dt = datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc)
+    mock_valid = MockDatetime(valid_dt)
+    mixed_list = [
+        mock_valid,
+        "invalid",
+        42,
+        {"not": "a date"},
+    ]
+
+    result = _process_exdate(mixed_list)
+
+    assert result == ["2024-01-01T10:00:00+00:00"]
+
+
+def test_process_exdate_nested_structure():
+    """Test processing a nested structure of dates."""
+    dates = [
+        datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc),
+        datetime(2024, 1, 2, 11, 0, tzinfo=timezone.utc),
+    ]
+    mock_outer = MockDt(
+        [
+            MockDatetime(dates[0]),
+            MockDatetime(dates[1]),
+        ],
+    )
+
+    result = _process_exdate(mock_outer)
+
+    assert result == [
+        "2024-01-01T10:00:00+00:00",
+        "2024-01-02T11:00:00+00:00",
+    ]
+
+
+def test_process_exdate_empty_dates_list():
+    """Test processing an empty dates list in a vDDDLists object."""
+    mock_dt = MockDt([])
+
+    result = _process_exdate(mock_dt)
+
+    assert result == []
