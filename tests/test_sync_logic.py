@@ -6,7 +6,7 @@ from unittest.mock import mock_open, patch
 
 import pytest
 
-from src.sync_logic import _sanitize_event_for_json, compare_events, load_local_sync
+from src.sync_logic import _create_google_event_body, _sanitize_event_for_json, compare_events, load_local_sync
 
 
 def test_compare_events_new(sample_event_data):
@@ -143,3 +143,105 @@ def test_load_local_sync_whitespace_only():
         result = load_local_sync("whitespace.json")
 
     assert result == {}
+
+
+def test_create_google_event_body_basic():
+    """Test creating a basic Google Calendar event body without recurrence."""
+    event = {
+        "summary": "Test Event",
+        "description": "Test Description",
+        "location": "Test Location",
+        "start": "2024-01-01T10:00:00+00:00",
+        "end": "2024-01-01T11:00:00+00:00",
+    }
+
+    result = _create_google_event_body(event)
+
+    assert result["summary"] == "Test Event"
+    assert result["description"] == "Test Description"
+    assert result["location"] == "Test Location"
+    assert result["start"] == {"dateTime": "2024-01-01T10:00:00+00:00", "timeZone": "UTC"}
+    assert result["end"] == {"dateTime": "2024-01-01T11:00:00+00:00", "timeZone": "UTC"}
+
+
+def test_create_google_event_body_minimal():
+    """Test creating event body with minimal required fields."""
+    event = {
+        "summary": "Minimal Event",
+        "start": "2024-01-01T10:00:00+00:00",
+        "end": "2024-01-01T11:00:00+00:00",
+    }
+
+    result = _create_google_event_body(event)
+
+    assert result["summary"] == "Minimal Event"
+    assert result["description"] == ""
+    assert result["location"] == ""
+    assert result["start"] == {"dateTime": "2024-01-01T10:00:00+00:00", "timeZone": "UTC"}
+    assert result["end"] == {"dateTime": "2024-01-01T11:00:00+00:00", "timeZone": "UTC"}
+
+
+def test_create_google_event_body_with_rrule():
+    """Test creating event body with recurrence rule."""
+    event = {
+        "summary": "Recurring Event",
+        "start": "2024-01-01T10:00:00+00:00",
+        "end": "2024-01-01T11:00:00+00:00",
+        "rrule": {
+            "FREQ": "WEEKLY",
+            "COUNT": 4,
+            "BYDAY": ["MO", "WE", "FR"],
+        },
+    }
+
+    result = _create_google_event_body(event)
+
+    assert "recurrence" in result
+    assert len(result["recurrence"]) == 1
+    assert result["recurrence"][0].startswith("RRULE:")
+    assert "FREQ=WEEKLY" in result["recurrence"][0]
+    assert "COUNT=4" in result["recurrence"][0]
+    assert "BYDAY=MO,WE,FR" in result["recurrence"][0]
+
+
+def test_create_google_event_body_with_rrule_and_exdate():
+    """Test creating event body with recurrence rule and exclusion dates."""
+    event = {
+        "summary": "Recurring Event with Exclusions",
+        "start": "2024-01-01T10:00:00+00:00",
+        "end": "2024-01-01T11:00:00+00:00",
+        "rrule": {
+            "FREQ": "WEEKLY",
+            "COUNT": 4,
+        },
+        "exdate": [
+            "2024-01-08T10:00:00+00:00",
+            "2024-01-15T10:00:00+00:00",
+        ],
+    }
+
+    result = _create_google_event_body(event)
+
+    assert len(result["recurrence"]) == 3  # noqa PLR2004
+    assert result["recurrence"][0].startswith("RRULE:")
+    assert result["recurrence"][1] == "EXDATE;TZID=UTC:2024-01-08T10:00:00+00:00"
+    assert result["recurrence"][2] == "EXDATE;TZID=UTC:2024-01-15T10:00:00+00:00"
+
+
+def test_create_google_event_body_with_datetime_in_rrule():
+    """Test creating event body with datetime objects in recurrence rule."""
+    until_date = datetime(2024, 12, 31, tzinfo=timezone.utc)
+    event = {
+        "summary": "Event with DateTime",
+        "start": "2024-01-01T10:00:00+00:00",
+        "end": "2024-01-01T11:00:00+00:00",
+        "rrule": {
+            "FREQ": "WEEKLY",
+            "UNTIL": until_date,
+        },
+    }
+
+    result = _create_google_event_body(event)
+
+    assert "recurrence" in result
+    assert "UNTIL=2024-12-31" in result["recurrence"][0]
