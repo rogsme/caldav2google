@@ -2,11 +2,12 @@
 
 import os
 
-from auth_google import authenticate_google, search_calendar_id
-from caldav_client import connect_to_caldav, fetch_events, get_calendar
 from dotenv import load_dotenv
-from logger import setup_logger
-from sync_logic import (
+
+from src.auth_google import authenticate_google, search_calendar_id
+from src.caldav_client import connect_to_caldav, fetch_events, get_calendar
+from src.logger import setup_logger
+from src.sync_logic import (
     add_event_to_google,
     compare_events,
     delete_event_from_google,

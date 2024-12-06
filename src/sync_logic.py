@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Tuple
 
 from googleapiclient.discovery import Resource
 
-from logger import setup_logger
+from src.logger import setup_logger
 
 logger = setup_logger(__name__)
 

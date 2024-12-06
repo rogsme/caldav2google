@@ -8,7 +8,8 @@ from google.auth.credentials import Credentials
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import Resource, build
-from logger import setup_logger
+
+from src.logger import setup_logger
 
 logger = setup_logger(__name__)
 

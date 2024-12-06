@@ -5,7 +5,8 @@ from typing import Any, Dict
 from caldav import Calendar as CalDAVCalendar
 from caldav import DAVClient, Principal
 from icalendar import Calendar
-from logger import setup_logger
+
+from src.logger import setup_logger
 
 logger = setup_logger(__name__)
 
