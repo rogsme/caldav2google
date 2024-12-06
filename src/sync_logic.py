@@ -225,12 +225,13 @@ def add_event_to_google(service: Resource, event: EventDict, calendar_id: str) -
             event["google_event_id"] = created_event["id"]
             logger.info(f"Successfully created event: {event['summary']} (Google ID: {created_event['id']})")
 
-        time.sleep(0.5)
-
     except Exception as e:
         logger.error(f"Failed to add/update event {event['summary']} (UID: {event['uid']})")
         logger.error(f"Error: {str(e)}")
         error_events.append(event)
+
+    finally:
+        time.sleep(0.5)
 
 
 def delete_event_from_google(service: Resource, event: EventDict, calendar_id: str) -> None:

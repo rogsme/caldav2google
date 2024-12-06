@@ -6,7 +6,61 @@ from unittest.mock import mock_open, patch
 
 import pytest
 
-from src.sync_logic import _create_google_event_body, _sanitize_event_for_json, compare_events, load_local_sync
+from src.sync_logic import (
+    _create_google_event_body,
+    _sanitize_event_for_json,
+    add_event_to_google,
+    compare_events,
+    error_events,
+    load_local_sync,
+)
+
+
+@pytest.fixture
+def sample_sync_data():
+    """Create sample sync data for testing."""
+    return {
+        "test-uid-1": {
+            "uid": "test-uid-1",
+            "summary": "Test Event 1",
+            "description": "Test Description",
+            "start": "2024-01-01T10:00:00+00:00",
+            "end": "2024-01-01T11:00:00+00:00",
+            "last_modified": "2024-01-01T09:00:00+00:00",
+            "google_event_id": "google-event-1",
+        },
+    }
+
+
+@pytest.fixture
+def mock_sleep():
+    """Mock time.sleep to speed up tests."""
+    with patch("time.sleep") as mock:
+        yield mock
+
+
+@pytest.fixture
+def sample_event():
+    """Create a sample event fixture."""
+    return {
+        "uid": "test-uid-1",
+        "summary": "Test Event",
+        "description": "Test Description",
+        "location": "Test Location",
+        "start": "2024-01-01T10:00:00+00:00",
+        "end": "2024-01-01T11:00:00+00:00",
+        "google_event_id": None,
+    }
+
+
+@pytest.fixture
+def mock_google_response():
+    """Create a sample Google Calendar API response."""
+    return {
+        "id": "google-event-123",
+        "status": "confirmed",
+        "htmlLink": "https://calendar.google.com/event?id=123",
+    }
 
 
 def test_compare_events_new(sample_event_data):
@@ -71,22 +125,6 @@ def test_sanitize_event_for_json(sample_event_data):
     assert sanitized["rrule"]["COUNT"] == 4  # noqa PLR2004
     assert isinstance(sanitized["rrule"]["UNTIL"], datetime)
     assert sanitized["rrule"]["BYDAY"] == ["MO", "WE", "FR"]
-
-
-@pytest.fixture
-def sample_sync_data():
-    """Create sample sync data for testing."""
-    return {
-        "test-uid-1": {
-            "uid": "test-uid-1",
-            "summary": "Test Event 1",
-            "description": "Test Description",
-            "start": "2024-01-01T10:00:00+00:00",
-            "end": "2024-01-01T11:00:00+00:00",
-            "last_modified": "2024-01-01T09:00:00+00:00",
-            "google_event_id": "google-event-1",
-        },
-    }
 
 
 def test_load_local_sync_file_exists(sample_sync_data):
@@ -245,3 +283,148 @@ def test_create_google_event_body_with_datetime_in_rrule():
 
     assert "recurrence" in result
     assert "UNTIL=2024-12-31" in result["recurrence"][0]
+
+
+def test_add_new_event_to_google(mock_google_service, sample_event, mock_google_response, mock_sleep):
+    """Test adding a new event to Google Calendar."""
+    # Setup mock
+    events = mock_google_service.events.return_value
+    insert = events.insert.return_value
+    insert.execute.return_value = mock_google_response
+
+    # Clear any previous error events
+    error_events.clear()
+
+    # Execute
+    add_event_to_google(mock_google_service, sample_event, "calendar-id")
+
+    # Verify
+    events.insert.assert_called_once()
+    insert.execute.assert_called_once()
+    assert sample_event["google_event_id"] == "google-event-123"
+    assert len(error_events) == 0
+    mock_sleep.assert_called_once_with(0.5)
+
+
+def test_update_existing_event_in_google(mock_google_service, sample_event, mock_google_response, mock_sleep):
+    """Test updating an existing event in Google Calendar."""
+    # Modify sample event to include google_event_id
+    sample_event["google_event_id"] = "existing-event-id"
+
+    # Setup mock
+    events = mock_google_service.events.return_value
+    update = events.update.return_value
+    update.execute.return_value = mock_google_response
+
+    # Clear any previous error events
+    error_events.clear()
+
+    # Execute
+    add_event_to_google(mock_google_service, sample_event, "calendar-id")
+
+    # Verify
+    events.update.assert_called_once()
+    update.execute.assert_called_once()
+    assert len(error_events) == 0
+    mock_sleep.assert_called_once_with(0.5)
+
+
+def test_add_event_to_google_api_error(mock_google_service, sample_event, mock_sleep):
+    """Test handling of API errors when adding event to Google Calendar."""
+    # Setup mock to raise an exception
+    events = mock_google_service.events.return_value
+    insert = events.insert.return_value
+    insert.execute.side_effect = Exception("API Error")
+
+    # Clear any previous error events
+    error_events.clear()
+
+    # Execute
+    add_event_to_google(mock_google_service, sample_event, "calendar-id")
+
+    # Verify
+    events.insert.assert_called_once()
+    insert.execute.assert_called_once()
+    assert len(error_events) == 1
+    assert error_events[0] == sample_event
+    mock_sleep.assert_called_once_with(0.5)
+
+
+def test_add_recurring_event_to_google(mock_google_service, sample_event, mock_google_response, mock_sleep):
+    """Test adding a recurring event to Google Calendar."""
+    # Add recurrence rule to sample event
+    sample_event["rrule"] = {
+        "FREQ": "WEEKLY",
+        "COUNT": 4,
+        "BYDAY": ["MO", "WE", "FR"],
+    }
+
+    # Setup mock
+    events = mock_google_service.events.return_value
+    insert = events.insert.return_value
+    insert.execute.return_value = mock_google_response
+
+    # Clear any previous error events
+    error_events.clear()
+
+    # Execute
+    add_event_to_google(mock_google_service, sample_event, "calendar-id")
+
+    # Verify
+    events.insert.assert_called_once()
+    call_args = events.insert.call_args[1]
+    assert "recurrence" in call_args["body"]
+    assert "RRULE:" in call_args["body"]["recurrence"][0]
+    assert sample_event["google_event_id"] == "google-event-123"
+    assert len(error_events) == 0
+    mock_sleep.assert_called_once_with(0.5)
+
+
+def test_update_event_with_api_error(mock_google_service, sample_event, mock_sleep):
+    """Test handling of API errors when updating an existing event."""
+    # Setup event with existing Google ID
+    sample_event["google_event_id"] = "existing-event-id"
+
+    # Setup mock to raise an exception
+    events = mock_google_service.events.return_value
+    update = events.update.return_value
+    update.execute.side_effect = Exception("Update API Error")
+
+    # Clear any previous error events
+    error_events.clear()
+
+    # Execute
+    add_event_to_google(mock_google_service, sample_event, "calendar-id")
+
+    # Verify
+    events.update.assert_called_once()
+    update.execute.assert_called_once()
+    assert len(error_events) == 1
+    assert error_events[0] == sample_event
+    mock_sleep.assert_called_once_with(0.5)
+
+
+def test_add_event_verifies_required_fields(mock_google_service, mock_sleep):
+    """Test that adding event with missing required fields is handled properly."""
+    # Create event missing required fields
+    incomplete_event = {
+        "uid": "test-uid-1",
+        "summary": "Test Event",
+        # Missing start and end times
+    }
+
+    # Setup mock
+    events = mock_google_service.events.return_value
+    insert = events.insert.return_value
+    insert.execute.return_value = {"id": "new-id"}
+
+    # Clear any previous error events
+    error_events.clear()
+
+    # Execute
+    add_event_to_google(mock_google_service, incomplete_event, "calendar-id")
+
+    # Verify
+    assert len(error_events) == 1
+    assert error_events[0] == incomplete_event
+    mock_sleep.assert_called_once_with(0.5)
