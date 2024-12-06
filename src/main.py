@@ -20,16 +20,16 @@ logger = setup_logger(__name__)
 
 load_dotenv()
 
-LOCAL_SYNC_FILE = "calendar_sync.json"
-CALDAV_URL = os.getenv("CALDAV_URL")
-CALDAV_USERNAME = os.getenv("CALDAV_USERNAME")
-CALDAV_PASSWORD = os.getenv("CALDAV_PASSWORD")
-CALDAV_CALENDAR_NAME = os.getenv("CALDAV_CALENDAR_NAME")
-GOOGLE_CALENDAR_NAME = os.getenv("GOOGLE_CALENDAR_NAME")
-
 
 def main() -> None:
     """Run the calendar synchronization process."""
+    LOCAL_SYNC_FILE = "calendar_sync.json"
+    CALDAV_URL = os.getenv("CALDAV_URL")
+    CALDAV_USERNAME = os.getenv("CALDAV_USERNAME")
+    CALDAV_PASSWORD = os.getenv("CALDAV_PASSWORD")
+    CALDAV_CALENDAR_NAME = os.getenv("CALDAV_CALENDAR_NAME")
+    GOOGLE_CALENDAR_NAME = os.getenv("GOOGLE_CALENDAR_NAME")
+
     try:
         logger.info("Starting calendar synchronization process")
 
