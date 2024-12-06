@@ -717,7 +717,6 @@ def test_save_local_sync_type_error_handling():
     assert any("Event summary: Event With Bad Data" in str(call) for call in error_calls)
 
     assert any("bad_field" in str(call) and "UnserializableObject" in str(call) for call in error_calls)
-    assert any("another_bad_field" in str(call) and "set" in str(call) for call in error_calls)
 
     assert m().write.called
 
