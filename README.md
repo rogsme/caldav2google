@@ -5,6 +5,7 @@
 </p>
 
 [![codecov](https://codecov.io/gl/rogs/caldav2google/graph/badge.svg?token=W12CFCUKP0)](https://codecov.io/gl/rogs/caldav2google)
+[![CI](https://git.rogs.me/rogs/caldav2google/actions/workflows/ci.yml/badge.svg)](https://git.rogs.me/rogs/caldav2google/actions)
 
 A Python utility to synchronize events from a CalDAV calendar to Google Calendar, maintaining a local state to track changes.
 
