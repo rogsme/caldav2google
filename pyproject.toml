@@ -1,32 +1,33 @@
-[tool.poetry]
+[project]
 name = "caldav2google"
 version = "0.1.0"
 description = "A script to convert CalDAV to Google Calendar"
-authors = ["Roger Gonzalez <roger@rogs.me>"]
+authors = [{ name = "Roger Gonzalez", email = "roger@rogs.me" }]
 license = "GPL-3.0-or-later"
 readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "caldav>=1.4.0,<2",
+    "icalendar>=6.1.0,<7",
+    "google-api-python-client>=2.154.0,<3",
+    "google-auth-httplib2>=0.2.0,<0.3",
+    "google-auth-oauthlib>=1.2.1,<2",
+    "python-dotenv>=1.0.1,<2",
+]
 
-[tool.poetry.dependencies]
-python = "^3.9"
-caldav = "^1.4.0"
-icalendar = "^6.1.0"
-google-api-python-client = "^2.154.0"
-google-auth-httplib2 = "^0.2.0"
-google-auth-oauthlib = "^1.2.1"
-python-dotenv = "^1.0.1"
+[dependency-groups]
+dev = [
+    "pre-commit>=4.0.1,<5",
+    "python-lsp-ruff>=2.2.2,<3",
+    "python-lsp-server>=1.12.0,<2",
+    "ruff>=0.8.0,<0.9",
+    "pytest>=8.3.4,<9",
+    "pytest-cov>=6.0.0,<7",
+    "pytest-mock>=3.14.0,<4",
+]
 
-[tool.poetry.group.dev.dependencies]
-pre-commit = "^4.0.1"
-python-lsp-ruff = "^2.2.2"
-python-lsp-server = "^1.12.0"
-ruff = "^0.8.0"
-pytest = "^8.3.4"
-pytest-cov = "^6.0.0"
-pytest-mock = "^3.14.0"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.uv]
+package = false
 
 [tool.ruff]
 exclude = [

@@ -15,23 +15,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
-
-      - name: Install Poetry
+      - name: Install uv
         run: |
-          curl -sSL https://install.python-poetry.org | python3 -
+          curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Install dependencies
-        run: poetry install --no-root
+        run: uv sync --locked
 
       - name: Run Ruff
         run: |
-          poetry run ruff check
-          poetry run ruff format --check
+          uv run ruff check
+          uv run ruff format --check
 
   test:
     name: Test
@@ -42,21 +37,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
-
-      - name: Install Poetry
+      - name: Install uv
         run: |
-          curl -sSL https://install.python-poetry.org | python3 -
+          curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Install dependencies
-        run: poetry install --no-root
+        run: uv sync --locked
 
       - name: Run Tests
-        run: poetry run pytest -v --cov=. --cov-report=xml
+        run: uv run pytest -v --cov=. --cov-report=xml
 
       - name: Upload coverage to Codecov
         run: bash <(curl -s https://codecov.io/bash)

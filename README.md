@@ -24,13 +24,13 @@ A Python utility to synchronize events from a CalDAV calendar to Google Calendar
 ## Prerequisites
 
 ### 1. Python Environment
-- Python 3.9 or higher
-- Poetry for dependency management
-- Required Python packages (automatically installed via Poetry):
-  - `caldav` (^1.4.0) - For CalDAV server interaction
-  - `icalendar` (^6.1.0) - For iCalendar format parsing
-  - `google-api-python-client` (^2.154.0) - For Google Calendar API
-  - `python-dotenv` (^1.0.1) - For environment variable management
+- Python 3.9 or higher (uv can download a suitable version for you)
+- [uv](https://docs.astral.sh/uv/) for dependency management
+- Required Python packages (installed automatically by `uv sync`):
+  - `caldav` (>=1.4.0, <2) - For CalDAV server interaction
+  - `icalendar` (>=6.1.0, <7) - For iCalendar format parsing
+  - `google-api-python-client` (>=2.154.0, <3) - For Google Calendar API
+  - `python-dotenv` (>=1.0.1, <2) - For environment variable management
 
 ### 2. CalDAV Server Details
 You'll need:
@@ -62,9 +62,9 @@ To interact with the Google Calendar API, follow these steps:
    cd caldav2google
    ```
 
-2. Install dependencies:
+2. Install dependencies (creates `.venv` and installs runtime and dev dependencies from `uv.lock`):
    ```bash
-   poetry install
+   uv sync
    ```
 
 3. Create `.env` file (copy from env.example):
@@ -78,15 +78,10 @@ To interact with the Google Calendar API, follow these steps:
 
 ## Usage
 
-1. Activate virtual environment:
-   ```bash
-   poetry shell
-   ```
-
-2. Run synchronization:
-   ```bash
-   PYTHONPATH=. python src/main.py
-   ```
+Run synchronization from the project root:
+```bash
+uv run python -m src.main
+```
 
 On first run:
 - Browser opens for Google OAuth authentication
@@ -98,7 +93,7 @@ On first run:
 To run the test suite:
 
 ```bash
-poetry run pytest
+uv run pytest
 ```
 
 This will run all tests in the `tests/` directory.
@@ -106,7 +101,7 @@ This will run all tests in the `tests/` directory.
 To generate a test coverage report:
 
 ```bash
-poetry run pytest --cov=src tests/
+uv run pytest --cov=src tests/
 ```
 
 ## Project Structure
@@ -118,7 +113,8 @@ src/
 ├── main.py             # Main synchronization orchestration
 ├── sync_logic.py       # Core synchronization & event comparison logic
 ├── logger.py           # Logging setup & configuration
-pyproject.toml          # Poetry project & tool configuration
+pyproject.toml          # Project metadata, dependencies & tool configuration
+uv.lock                 # Locked dependency versions (managed by uv)
 env.example             # Environment variables template
 .env                    # Active environment variables
 README.md               # Project documentation
@@ -195,9 +191,16 @@ The script provides robust error handling:
 
 ## Development
 
+### Managing Dependencies
+```bash
+uv add <package>          # Add a runtime dependency
+uv add --dev <package>    # Add a development dependency
+uv lock --upgrade         # Upgrade locked versions within the allowed ranges
+```
+
 ### Pre-commit Hooks
 ```bash
-poetry run pre-commit install
+uv run pre-commit install
 ```
 
 This sets up pre-commit hooks to enforce code quality and consistency.
@@ -227,6 +230,6 @@ Built with:
 - [caldav](https://pypi.org/project/caldav/) - CalDAV client library
 - [google-api-python-client](https://github.com/googleapis/google-api-python-client) - Google Calendar API
 - [python-dotenv](https://pypi.org/project/python-dotenv/) - Environment management
-- [Poetry](https://python-poetry.org/) - Dependency management
+- [uv](https://docs.astral.sh/uv/) - Dependency management
 - [Ruff](https://github.com/astral-sh/ruff) - Python linter
 - [pytest](https://docs.pytest.org/) - Testing framework
