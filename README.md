@@ -1,7 +1,7 @@
 # CalDAV2GoogleCalendar
 
 <p align="center">
-  <img src="https://gitlab.com/uploads/-/system/project/avatar/64798757/logo.jpg" alt="caldav2google"/>
+  <img src="logo.jpg" alt="caldav2google"/>
 </p>
 
 [![codecov](https://codecov.io/gl/rogs/caldav2google/graph/badge.svg?token=W12CFCUKP0)](https://codecov.io/gl/rogs/caldav2google)
@@ -58,7 +58,7 @@ To interact with the Google Calendar API, follow these steps:
 
 1. Clone the repository:
    ```bash
-   git clone https://gitlab.com/rogs/caldav2google.git
+   git clone https://git.rogs.me/rogs/caldav2google.git
    cd caldav2google
    ```
 
