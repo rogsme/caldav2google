@@ -1,7 +1,7 @@
 """Tests for the load_local_sync function in sync_logic module."""
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import call, mock_open, patch
 
 import pytest
@@ -13,6 +13,7 @@ from src.sync_logic import (
     compare_events,
     delete_event_from_google,
     error_events,
+    filter_recent_events,
     load_local_sync,
     save_local_sync,
 )
@@ -739,3 +740,45 @@ def test_save_local_sync_invalid_data_handling():
         save_local_sync("test.json", events)
 
     assert m().write.called
+
+
+def test_filter_recent_events():
+    """Test that only events ending within the window or later are kept."""
+    now = datetime.now(timezone.utc)
+    old_event = {"uid": "old", "end": (now - timedelta(days=59)).isoformat()}
+    recent_event = {"uid": "recent", "end": (now - timedelta(days=4)).isoformat()}
+    future_event = {"uid": "future", "end": (now + timedelta(days=6)).isoformat()}
+
+    result = filter_recent_events([old_event, recent_event, future_event])
+
+    assert [event["uid"] for event in result] == ["recent", "future"]
+
+
+def test_filter_recent_events_keeps_recurring_and_undated():
+    """Test that recurring events and events without dates are always kept."""
+    recurring_event = {"uid": "recurring", "start": "2020-01-01T10:00:00+00:00", "rrule": {"FREQ": ["WEEKLY"]}}
+    undated_event = {"uid": "undated", "start": None, "end": None}
+
+    result = filter_recent_events([recurring_event, undated_event])
+
+    assert [event["uid"] for event in result] == ["recurring", "undated"]
+
+
+def test_filter_recent_events_all_day_and_naive_dates():
+    """Test that all-day dates and naive datetimes are handled."""
+    now = datetime.now(timezone.utc)
+    old_all_day = {"uid": "old-all-day", "start": "2020-01-01", "end": "2020-01-02"}
+    recent_naive = {"uid": "recent-naive", "end": (now - timedelta(days=1)).replace(tzinfo=None).isoformat()}
+
+    result = filter_recent_events([old_all_day, recent_naive])
+
+    assert [event["uid"] for event in result] == ["recent-naive"]
+
+
+def test_filter_recent_events_unparseable_date():
+    """Test that events with unparseable dates are kept."""
+    bad_event = {"uid": "bad", "summary": "Bad", "end": "not-a-date"}
+
+    result = filter_recent_events([bad_event])
+
+    assert result == [bad_event]

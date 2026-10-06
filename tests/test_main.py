@@ -83,6 +83,47 @@ def test_main(  # noqa PLR0913
     )
 
 
+@patch("src.main.authenticate_google")
+@patch("src.main.search_calendar_id")
+@patch("src.main.connect_to_caldav")
+@patch("src.main.get_calendar")
+@patch("src.main.fetch_events")
+@patch("src.main.load_local_sync")
+@patch("src.main.compare_events")
+@patch("src.main.filter_recent_events")
+@patch("src.main.add_event_to_google")
+@patch("src.main.delete_event_from_google")
+@patch("src.main.save_local_sync")
+def test_main_first_run_filters_old_events(  # noqa PLR0913
+    mock_save_local_sync,
+    mock_delete_event_from_google,  # noqa ARG001
+    mock_add_event_to_google,
+    mock_filter_recent_events,
+    mock_compare_events,
+    mock_load_local_sync,
+    mock_fetch_events,
+    mock_get_calendar,
+    mock_connect_to_caldav,  # noqa ARG001
+    mock_search_calendar_id,
+    mock_authenticate_google,
+    mock_env_vars,  # noqa ARG001
+):
+    """Test that the first run only syncs recent events but saves all of them."""
+    mock_authenticate_google.return_value = "mock_service"
+    mock_search_calendar_id.return_value = "mock_google_calendar_id"
+    mock_get_calendar.return_value = MagicMock(name="Mock CalDAV Calendar")
+    mock_fetch_events.return_value = {"old": {"uid": "old"}, "recent": {"uid": "recent"}}
+    mock_load_local_sync.return_value = {}
+    mock_compare_events.return_value = ([{"uid": "old"}, {"uid": "recent"}], [], [])
+    mock_filter_recent_events.return_value = [{"uid": "recent"}]
+
+    main()
+
+    mock_filter_recent_events.assert_called_once_with([{"uid": "old"}, {"uid": "recent"}])
+    mock_add_event_to_google.assert_called_once_with("mock_service", {"uid": "recent"}, "mock_google_calendar_id")
+    mock_save_local_sync.assert_called_once_with("calendar_sync.json", mock_fetch_events.return_value)
+
+
 @patch("src.main.logger.error")
 def test_main_exception(mock_logger_error, mock_env_vars):  # noqa ARG001
     """Test the main function handles exceptions gracefully."""

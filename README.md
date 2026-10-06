@@ -87,6 +87,7 @@ On first run:
 - Browser opens for Google OAuth authentication
 - Grant requested calendar permissions
 - Token is saved as `token.pickle` for future use
+- Only events from the last 30 days onwards are synced (plus all future and recurring events); older events are recorded in `calendar_sync.json` but not pushed to Google
 
 ## Testing
 

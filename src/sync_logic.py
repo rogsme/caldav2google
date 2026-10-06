@@ -3,7 +3,7 @@
 import json
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Tuple
 
 from googleapiclient.discovery import Resource
@@ -16,6 +16,8 @@ EventDict = Dict[str, Any]
 EventsDict = Dict[str, EventDict]
 
 error_events: List[EventDict] = []
+
+INITIAL_SYNC_DAYS = 30
 
 
 def _sanitize_event_for_json(event_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -81,6 +83,53 @@ def compare_events(
         f"and {len(deleted_events)} deleted events",
     )
     return new_events, updated_events, deleted_events
+
+
+def _parse_event_time(value: str) -> datetime:
+    """Parse an ISO date or datetime string into a timezone-aware datetime.
+
+    Args:
+        value: ISO formatted date or datetime string.
+
+    Returns:
+        datetime: Parsed datetime, assumed UTC if no timezone is present.
+    """
+    parsed = datetime.fromisoformat(value)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def filter_recent_events(events: List[EventDict], days: int = INITIAL_SYNC_DAYS) -> List[EventDict]:
+    """Filter out events that ended more than `days` days ago.
+
+    Recurring events and events without a parseable date are always kept.
+
+    Args:
+        events: List of events to filter.
+        days: Number of days in the past to keep events from.
+
+    Returns:
+        List[EventDict]: Events that are recurring, ongoing, upcoming, or ended within the window.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    recent_events: List[EventDict] = []
+
+    for event in events:
+        event_time = event.get("end") or event.get("start")
+        if event.get("rrule") or not event_time:
+            recent_events.append(event)
+            continue
+
+        try:
+            if _parse_event_time(event_time) >= cutoff:
+                recent_events.append(event)
+        except ValueError:
+            logger.warning(f"Could not parse date for event {event.get('summary')} (UID: {event.get('uid')})")
+            recent_events.append(event)
+
+    logger.info(f"Kept {len(recent_events)} of {len(events)} events from the last {days} days onwards")
+    return recent_events
 
 
 def load_local_sync(file_path: str) -> EventsDict:

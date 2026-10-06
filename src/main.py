@@ -8,10 +8,12 @@ from src.auth_google import authenticate_google, search_calendar_id
 from src.caldav_client import connect_to_caldav, fetch_events, get_calendar
 from src.logger import setup_logger
 from src.sync_logic import (
+    INITIAL_SYNC_DAYS,
     add_event_to_google,
     compare_events,
     delete_event_from_google,
     error_events,
+    filter_recent_events,
     load_local_sync,
     save_local_sync,
 )
@@ -53,6 +55,11 @@ def main() -> None:
 
         logger.info("Comparing events...")
         new_events, updated_events, deleted_events = compare_events(local_events, server_events)
+
+        if not local_events:
+            # Older events are still saved to the sync file, so later runs won't treat them as new
+            logger.info(f"First run detected, only syncing events from the last {INITIAL_SYNC_DAYS} days onwards")
+            new_events = filter_recent_events(new_events)
 
         logger.info(f"Adding {len(new_events)} new events and updating {len(updated_events)} events in Google Calendar")
         for event in new_events + updated_events:
