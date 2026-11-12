@@ -53,6 +53,7 @@ To interact with the Google Calendar API, follow these steps:
    - Select **Desktop App** as the application type.
    - Download the `credentials.json` file.
 5. Place the `credentials.json` file in the project directory.
+6. Publish the app: go to **Google Auth Platform > Audience** and click **Publish app** so the publishing status is **In production**. While the app is in **Testing**, Google expires its refresh tokens after 7 days, and a cron job then needs a new login every week. Verification is not needed for personal use; on the consent screen, click **Advanced** to get past the "unverified app" warning.
 
 ## Installation
 
@@ -87,6 +88,13 @@ On first run:
 - Browser opens for Google OAuth authentication
 - Grant requested calendar permissions
 - Token is saved as `token.pickle` for future use
+
+To authenticate without running a sync (for example to set up a headless server), run this on a machine with a browser and then copy `token.pickle` to the server's project directory:
+```bash
+uv run python -m src.auth_google
+```
+
+The browser flow only starts when the script runs in a terminal. Under cron, with no usable token, the script exits with an error instead of waiting for a browser.
 - Only events from the last 30 days onwards are synced (plus all future and recurring events); older events are recorded in `calendar_sync.json` but not pushed to Google
 
 ## Testing
@@ -166,9 +174,9 @@ The script provides robust error handling:
   - Ensure OAuth consent screen is configured
   - Check that Calendar API is enabled in Google Cloud Console
 
-- Error: `Token has been expired or revoked`
-  - Delete `token.pickle`
-  - Re-run script to trigger new authentication flow
+- Error: `invalid_grant: Token has been expired or revoked`
+  - Run `uv run python -m src.auth_google` on a machine with a browser and copy the new `token.pickle` to the server
+  - If this happens about every 7 days, the OAuth app is still in **Testing**: publish it (see step 6 of the Google setup), then authenticate once more, because tokens issued during Testing keep their 7-day limit
 
 #### CalDAV
 - Error: `Could not connect to server`
