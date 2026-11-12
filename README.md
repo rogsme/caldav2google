@@ -95,6 +95,10 @@ uv run python -m src.auth_google
 ```
 
 The browser flow only starts when the script runs in a terminal. Under cron, with no usable token, the script exits with an error instead of waiting for a browser.
+
+### Shortcuts with just
+
+If you have [just](https://github.com/casey/just) installed, the `justfile` wraps the common commands: `just sync`, `just auth`, `just test`, `just lint`, `just fmt` and `just check` (lint and tests, as CI runs them). Run `just` to list every recipe.
 - Only events from the last 30 days onwards are synced (plus all future and recurring events); older events are recorded in `calendar_sync.json` but not pushed to Google
 
 ## Testing
